@@ -1,0 +1,62 @@
+{
+  "timestamp": "2026-05-15T11:11:44.899629+00:00",
+  "timestamp_beijing": "2026-05-15 19:11",
+  "source": [
+    "Fallback from history (network unavailable)"
+  ],
+  "gold": 2316.27,
+  "silver": 27.7,
+  "copper": 4.78,
+  "aluminum": 2.37,
+  "dxy": 104.46,
+  "gsr": 83.62,
+  "silver_gold_ratio": 0.01196,
+  "copper_gold_ratio": 0.00206,
+  "aluminum_copper_ratio": 0.4958,
+  "signals": {
+    "quadrant": "C",
+    "quadrant_name": "复杂盘",
+    "description": "金铜同强，通胀+不确定性并存，需均衡应对",
+    "risk_level": "中高",
+    "details": [
+      "金银比 83.62 > 80，避险情绪浓厚",
+      "铜金比 0.00206 偏高，增长预期较强",
+      "铝铜比 0.4958 正常，需求端定价为主"
+    ],
+    "actions": [
+      "策略风格：均衡配置，不单一押注",
+      "仓位参考：保持对冲，黄金与工业金属均配",
+      "风险提示：通胀与不确定性并存，做好风险对冲，避免追涨杀跌"
+    ]
+  },
+  "changes": {
+    "gold": {
+      "value": 0.0,
+      "pct": 0.0
+    },
+    "silver": {
+      "value": 0.0,
+      "pct": 0.0
+    },
+    "copper": {
+      "value": 0.0,
+      "pct": 0.0
+    },
+    "aluminum": {
+      "value": 0.0,
+      "pct": 0.0
+    },
+    "dxy": {
+      "value": 0.0,
+      "pct": 0.0
+    },
+    "gsr": {
+      "value": 0.0,
+      "pct": 0.0
+    },
+    "copper_gold_ratio": {
+      "value": 0.0,
+      "pct": 0.0
+    }
+  }
+}

@@ -39,8 +39,6 @@ DXY_SYMBOLS = ["DX-Y.NYB", "UUP"]
 
 def fetch_yfinance(symbols):
     """用 yfinance 获取数据，返回 (price, symbol_used)"""
-    # 设置全局超时，防止网络阻塞
-    yf.utils.set_tz_cache_location(None)
     for sym in symbols:
         try:
             ticker = yf.Ticker(sym)

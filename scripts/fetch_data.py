@@ -279,6 +279,43 @@ def load_previous():
     return None
 
 
+def validate_and_sanitize(record, previous):
+    """
+    价格合理性校验：如果某金属较历史价格变化幅度过大，
+    认为数据源单位/合约出错，丢弃该值并使用历史值回退。
+    """
+    if not previous:
+        return record
+
+    # (字段名, 单日最大允许变化比例)
+    thresholds = {
+        "gold": 0.25,
+        "silver": 0.35,
+        "copper": 0.35,
+        "aluminum": 0.40,
+        "dxy": 0.12,
+    }
+
+    for key, max_pct in thresholds.items():
+        curr = record.get(key)
+        try:
+            prev_val = float(previous.get(key, 0)) if previous.get(key) else None
+        except (ValueError, TypeError):
+            prev_val = None
+
+        if curr is not None and prev_val and prev_val != 0:
+            change_pct = abs(curr - prev_val) / prev_val
+            if change_pct > max_pct:
+                print(f"  ⚠️ 异常值警告: {key} = {curr} (历史 {prev_val}, 变化 {change_pct*100:.1f}%), 超过阈值 {max_pct*100:.0f}%, 丢弃")
+                record[key] = None
+
+    # 如果铝被丢弃，连带清除依赖它的比率
+    if record.get("aluminum") is None:
+        record.pop("aluminum_copper_ratio", None)
+
+    return record
+
+
 def append_history(record):
     """追加历史记录"""
     flat = {
@@ -305,15 +342,58 @@ def append_history(record):
 def main():
     record = fetch_all()
 
+    # 价格合理性校验（防止数据源单位/合约变更导致异常值污染历史）
     has_data = any(record.get(k) for k in ["gold", "silver", "copper", "aluminum"])
-    if not has_data:
-        print("警告：未获取到任何真实数据，跳过更新")
-        return record
+    if has_data:
+        prev = load_previous()
+        if prev:
+            record = validate_and_sanitize(record, prev)
+            # 若关键价格被清除，连带清除依赖它的比率与信号
+            if record.get("gold") is None or record.get("silver") is None:
+                record.pop("gsr", None)
+                record.pop("silver_gold_ratio", None)
+            if record.get("copper") is None or record.get("gold") is None:
+                record.pop("copper_gold_ratio", None)
+            if record.get("aluminum") is None or record.get("copper") is None:
+                record.pop("aluminum_copper_ratio", None)
+            record["signals"] = calculate_signals(record)
 
-    # 计算较上日涨跌（仅当有真实历史数据时）
+    # 如果什么都没抓到，尝试从历史最后一条回退
+    if not has_data:
+        prev = load_previous()
+        if prev:
+            print("网络抓取失败，使用历史数据最后一条作为回退...")
+            beijing_now = datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d %H:%M")
+            record = {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp_beijing": beijing_now,
+                "source": ["Fallback from history (network unavailable)"],
+                "gold": float(prev["gold"]) if prev.get("gold") else None,
+                "silver": float(prev["silver"]) if prev.get("silver") else None,
+                "copper": float(prev["copper"]) if prev.get("copper") else None,
+                "aluminum": float(prev["aluminum"]) if prev.get("aluminum") else None,
+                "dxy": float(prev["dxy"]) if prev.get("dxy") else None,
+            }
+            # 重新计算比率与信号
+            gold = record.get("gold")
+            silver = record.get("silver")
+            copper = record.get("copper")
+            aluminum = record.get("aluminum")
+            if gold and silver:
+                record["gsr"] = round(gold / silver, 2)
+                record["silver_gold_ratio"] = round(silver / gold, 5)
+            if copper and gold:
+                record["copper_gold_ratio"] = round(copper / gold, 5)
+            if aluminum and copper:
+                record["aluminum_copper_ratio"] = round(aluminum / copper, 4)
+            record["signals"] = calculate_signals(record)
+        else:
+            print("网络抓取失败且无历史数据，生成空记录")
+
+    # 计算较上日涨跌
     prev = load_previous()
     record["changes"] = {}
-    if prev and prev.get("gold"):
+    if prev:
         for key in ["gold", "silver", "copper", "aluminum", "dxy", "gsr", "copper_gold_ratio"]:
             try:
                 curr_v = record.get(key)
@@ -331,20 +411,23 @@ def main():
     with open(LATEST_FILE, "w", encoding="utf-8") as f:
         json.dump(record, f, ensure_ascii=False, indent=2)
 
-    # 追加历史（避免重复）
-    should_append = True
-    if prev and prev.get("gold"):
-        same = all(
-            abs((record.get(k) or 0) - float(prev.get(k) or 0)) < 0.001
-            for k in ["gold", "silver", "copper", "aluminum"]
-        )
-        if same:
-            should_append = False
-    if should_append:
-        append_history(record)
-        print("历史数据已更新")
-    else:
-        print("数据与上条相同，跳过历史追加")
+    # 只有当有真实价格且与最后一条不同时才追加历史
+    has_real = any(record.get(k) for k in ["gold", "silver", "copper", "aluminum"])
+    if has_real:
+        # 避免重复追加同一条（同一天同一小时）
+        should_append = True
+        if prev:
+            same = all(
+                abs((record.get(k) or 0) - float(prev.get(k) or 0)) < 0.001
+                for k in ["gold", "silver", "copper", "aluminum"]
+            )
+            if same:
+                should_append = False
+        if should_append:
+            append_history(record)
+            print("历史数据已更新")
+        else:
+            print("数据与上条相同，跳过历史追加")
 
     print("\n数据保存完成:", LATEST_FILE)
     return record

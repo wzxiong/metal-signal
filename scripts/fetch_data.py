@@ -5,19 +5,18 @@
 """
 
 import os
-import sys
 import json
 import csv
+import requests
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
-# 尝试使用 yfinance，否则用 requests 直连
+# 尝试使用 yfinance
 try:
     import yfinance as yf
     HAS_YFINANCE = True
 except ImportError:
     HAS_YFINANCE = False
-    import requests
 
 # 项目根目录
 ROOT = Path(__file__).parent.parent.resolve()
@@ -100,8 +99,11 @@ def fetch_requests(symbols):
 
 
 def fetch_price(symbols):
+    """先尝试 yfinance，失败则回退到 requests 直连"""
     if HAS_YFINANCE:
-        return fetch_yfinance(symbols)
+        price, used = fetch_yfinance(symbols)
+        if price is not None:
+            return price, used
     return fetch_requests(symbols)
 
 
@@ -168,7 +170,6 @@ def calculate_signals(data):
     }
 
     gsr = data.get("gsr")
-    sgr = data.get("silver_gold_ratio")
     cgr = data.get("copper_gold_ratio")
 
     if gsr is None or cgr is None:

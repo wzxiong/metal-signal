@@ -61,6 +61,23 @@ class MergeTest(unittest.TestCase):
         self.assertEqual(merged[0]["gold"], 999.0)
 
 
+class ForceMergeTest(unittest.TestCase):
+    def test_force_rebuilds_window_and_drops_stale_dates(self) -> None:
+        existing = [
+            {"date": "2025-01-01", "gold": 1.0},   # 窗口外，保留
+            {"date": "2026-01-02", "gold": 2.0},   # 窗口内，被替换
+            {"date": "2026-01-03", "gold": 3.0},   # 幽灵日期（不在回填结果里）
+        ]
+        backfilled = [{"date": "2026-01-02", "gold": 20.0}, {"date": "2026-01-05", "gold": 50.0}]
+        merged = merge(existing, backfilled, prefer_backfilled=True)
+
+        self.assertEqual(
+            [r["date"] for r in merged], ["2025-01-01", "2026-01-02", "2026-01-05"]
+        )
+        self.assertEqual(hist.find(merged, "2026-01-02")["gold"], 20.0)
+        self.assertIsNone(hist.find(merged, "2026-01-03"))
+
+
 class RunTest(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()

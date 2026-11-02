@@ -108,17 +108,24 @@ def merge(
 ) -> list[dict[str, Any]]:
     """默认已有真实快照优先，回填只补缺口。
 
-    prefer_backfilled=True（--force）时用回填结果覆盖同一天，
-    用于修正历史字段（例如交易日期口径变了）。
+    prefer_backfilled=True（--force）时以回填结果为准重建整个时间窗口，
+    用于修正历史字段口径（例如交易日期映射变了）。
     """
     if prefer_backfilled:
-        by_day = {r["date"]: r for r in existing}
-        for row in backfilled:
-            by_day[row["date"]] = row
-    else:
+        # 用回填结果重建整个时间窗口：窗口内一律以回填为准，
+        # 窗口外的旧记录保留，避免口径修正后留下"幽灵日期"。
+        if not backfilled:
+            return existing
+        low, high = backfilled[0]["date"], backfilled[-1]["date"]
+        kept = [r for r in existing if r["date"] < low or r["date"] > high]
         by_day = {r["date"]: r for r in backfilled}
-        for row in existing:
+        for row in kept:
             by_day[row["date"]] = row
+        return [by_day[day] for day in sorted(by_day)]
+
+    by_day = {r["date"]: r for r in backfilled}
+    for row in existing:
+        by_day[row["date"]] = row
     return [by_day[day] for day in sorted(by_day)]
 
 
@@ -138,7 +145,10 @@ def run(
         print(f"历史已有 {len(existing)} 个交易日，无需回填（--force 可强制）")
         return existing
 
-    print(f"历史仅 {len(existing)} 个交易日，开始回填最近 {years} 年日线…")
+    if force:
+        print(f"强制回填：当前 {len(existing)} 个交易日，重建最近 {years} 年日线…")
+    else:
+        print(f"历史仅 {len(existing)} 个交易日，开始回填最近 {years} 年日线…")
     series = fetch_asset_series(fetcher, years)
     if not series:
         print("✗ 回填失败：没有任何品种取到数据")

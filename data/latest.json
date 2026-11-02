@@ -1,0 +1,81 @@
+{
+  "schema": 2,
+  "timestamp": "2026-11-02T08:40:07+00:00",
+  "timestamp_beijing": "2026-11-02 16:40",
+  "as_of": "2026-11-02",
+  "stale": false,
+  "stale_reason": null,
+  "degraded": {},
+  "sources": [
+    "黄金 GC=F",
+    "白银 SI=F",
+    "铜 HG=F",
+    "铝 ALI=F",
+    "美元指数 DX-Y.NYB"
+  ],
+  "prices": {
+    "gold": 3905.2,
+    "silver": 50.315,
+    "copper": 6.53,
+    "aluminum": 1.437434,
+    "dxy": 101.665
+  },
+  "ratios": {
+    "gsr": 77.62,
+    "silver_gold_ratio": 0.01288,
+    "copper_gold_ratio": 0.00167,
+    "aluminum_copper_ratio": 0.2201
+  },
+  "signals": {
+    "quadrant": "B",
+    "quadrant_name": "防守盘",
+    "description": "黄金强、铜弱，避险情绪浓，防守资产占优。",
+    "risk_level": "中",
+    "risk_score": 50,
+    "method": "金银比阈值 75（金强 / 银强）× 铜金比阈值 0.002（铜强 / 铜弱）",
+    "details": [
+      "金银比 77.62 高于阈值 75（金强银弱，避险情绪偏浓）",
+      "铜金比 0.0017 低于阈值 0.002（铜弱金强，增长预期偏弱）",
+      "铝铜比 0.2201 低于阈值 0.6（需求端定价为主）"
+    ],
+    "actions": [
+      "策略风格：防御为主，增配避险资产",
+      "仓位参考：降低风险敞口，提高现金 / 短债比例",
+      "风险提示：股票与商品波动加大，关注美元与利率走向"
+    ],
+    "context": {},
+    "trend": {
+      "gsr": {
+        "d5": null,
+        "d20": null
+      },
+      "copper_gold_ratio": {
+        "d5": null,
+        "d20": null
+      },
+      "aluminum_copper_ratio": {
+        "d5": null,
+        "d20": null
+      }
+    }
+  },
+  "changes": {},
+  "baseline": {
+    "date": "2026-05-15",
+    "age_days": 171,
+    "usable": false
+  },
+  "history": {
+    "days": 2,
+    "from": "2026-05-15",
+    "to": "2026-11-02"
+  },
+  "gold": 3905.2,
+  "silver": 50.315,
+  "copper": 6.53,
+  "aluminum": 1.437434,
+  "dxy": 101.665,
+  "gsr": 77.62,
+  "copper_gold_ratio": 0.00167,
+  "aluminum_copper_ratio": 0.2201
+}

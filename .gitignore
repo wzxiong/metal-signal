@@ -7,3 +7,9 @@ venv/
 .venv/
 *.egg-info/
 .ipynb_checkpoints/
+.pytest_cache/
+.ruff_cache/
+data/*.tmp
+
+# 本地预览截图（不提交）
+.preview/

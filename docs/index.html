@@ -1,445 +1,396 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>贵金属信号灯 | Allocation Lab 宏观框架</title>
-<style>
-:root {
-  --bg: #0b0f19;
-  --card: rgba(255,255,255,0.04);
-  --border: rgba(255,255,255,0.08);
-  --text: #e2e8f0;
-  --muted: #94a3b8;
-  --accent: #ffd700;
-}
-* { box-sizing: border-box; }
-body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  line-height: 1.6;
-}
-.container {
-  max-width: 960px;
-  margin: 0 auto;
-  padding: 24px 16px 60px;
-}
-header {
-  text-align: center;
-  margin-bottom: 28px;
-}
-header h1 {
-  margin: 0;
-  font-size: 28px;
-  letter-spacing: 1px;
-}
-header h1 span {
-  color: var(--accent);
-}
-.meta {
-  color: var(--muted);
-  font-size: 13px;
-  margin-top: 6px;
-}
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#080b12">
+<meta name="description" content="基于 Allocation Lab 宏观交易框架的每日贵金属市场状态分析：金银比、铜金比、铝铜比与四象限信号。">
+<meta property="og:type" content="website">
+<meta property="og:title" content="贵金属信号灯 · 宏观状态跟踪">
+<meta property="og:description" content="金银比、铜金比、铝铜比与四象限信号，每日自动更新。">
+<meta property="og:url" content="https://wzxiong.github.io/metal-signal/">
+<meta name="twitter:card" content="summary">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23f5c542'/%3E%3C/svg%3E">
+<title>贵金属信号灯 · 高风险盘 | 宏观框架</title><style>
 
-/* 价格卡片 */
-.grid-5 {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 12px;
-  margin-bottom: 20px;
+:root{
+  --bg:#080b12; --bg-soft:#0d1220; --panel:rgba(255,255,255,.035);
+  --panel-strong:rgba(255,255,255,.06); --border:rgba(255,255,255,.08);
+  --border-strong:rgba(255,255,255,.16);
+  --text:#e6ebf5; --muted:#94a3b8; --dim:#64748b;
+  --gold:#f5c542; --up:#4ade80; --down:#f87171; --flat:#94a3b8;
+  --radius:16px; --shadow:0 18px 40px -24px rgba(0,0,0,.9);
+  --font:-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
-.card {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 16px;
-  transition: transform .15s;
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:
+    radial-gradient(1100px 520px at 50% -220px, rgba(245,197,66,.10), transparent 60%),
+    radial-gradient(900px 500px at 88% 8%, rgba(96,165,250,.07), transparent 55%),
+    var(--bg);
+  color:var(--text); font-family:var(--font); line-height:1.65;
+  -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
 }
-.card:hover { transform: translateY(-2px); }
-.price-card .card-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-.dot {
-  width: 10px; height: 10px;
-  border-radius: 50%;
-  display: inline-block;
-  box-shadow: 0 0 8px currentColor;
-}
-.label { font-size: 14px; color: var(--muted); }
-.unit { font-size: 12px; color: #64748b; margin-left: auto; }
-.price-card .value {
-  font-size: 26px;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-}
-.change {
-  font-size: 13px;
-  margin-top: 4px;
-  font-variant-numeric: tabular-nums;
-}
-.change.up { color: #4ade80; }
-.change.down { color: #f87171; }
-.change.neutral { color: #64748b; }
+.wrap{max-width:1000px; margin:0 auto; padding:40px 20px 72px}
+h1,h2,h3{letter-spacing:.01em}
+a{color:#93b4e6; text-decoration:none; border-bottom:1px solid rgba(147,180,230,.3)}
+a:hover{color:#c7dcf8}
 
-/* 比率卡片 */
-.grid-3 {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 12px;
-  margin-bottom: 24px;
+/* ---------- header ---------- */
+.site-head{text-align:center; margin-bottom:28px}
+.brand{font-size:30px; font-weight:800; letter-spacing:.06em}
+.brand-mark{filter:drop-shadow(0 0 14px rgba(245,197,66,.45))}
+.tagline{margin:8px 0 16px; color:var(--muted); font-size:14px}
+.meta-row{display:flex; gap:8px; justify-content:center; flex-wrap:wrap}
+.pill{
+  font-size:12.5px; color:var(--muted); padding:5px 12px; border-radius:999px;
+  border:1px solid var(--border); background:var(--panel);
 }
-.ratio-card { text-align: center; padding: 20px 16px; }
-.ratio-label { font-size: 15px; color: var(--muted); margin-bottom: 4px; }
-.ratio-value { font-size: 32px; font-weight: 700; margin: 6px 0; }
-.ratio-desc { font-size: 12px; color: #64748b; }
+.pill b{color:var(--text); font-variant-numeric:tabular-nums}
 
-/* 四象限 */
-.quadrant-section { margin-bottom: 24px; }
-.section-title {
-  font-size: 16px;
-  color: var(--muted);
-  margin-bottom: 12px;
-  text-align: center;
+/* ---------- banners ---------- */
+.banner{
+  display:flex; gap:12px; align-items:flex-start; padding:14px 18px;
+  border-radius:14px; margin-bottom:18px; font-size:14px; line-height:1.6;
 }
-.quadrant-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  max-width: 420px;
-  margin: 0 auto;
-}
-.q {
-  border-radius: 14px;
-  padding: 18px 12px;
-  text-align: center;
-  opacity: 0.35;
-  border: 2px solid transparent;
-  transition: all .25s;
-}
-.q.active {
-  opacity: 1;
-  transform: scale(1.04);
-  border-color: rgba(255,255,255,0.25);
-  box-shadow: 0 10px 30px rgba(0,0,0,0.35);
-}
-.q .q-name { font-size: 22px; font-weight: 700; }
-.q .q-desc { font-size: 12px; margin-top: 4px; opacity: .9; }
-.q-A { background: linear-gradient(135deg, #16a34a, #15803d); }
-.q-B { background: linear-gradient(135deg, #2563eb, #1d4ed8); }
-.q-C { background: linear-gradient(135deg, #ea580c, #c2410c); }
-.q-D { background: linear-gradient(135deg, #dc2626, #b91c1c); }
+.banner-warn{background:rgba(251,146,60,.10); border:1px solid rgba(251,146,60,.3); color:#fed7aa}
+.banner-info{background:rgba(96,165,250,.09); border:1px solid rgba(96,165,250,.28); color:#bfdbfe}
+.banner-icon{font-size:16px; line-height:1.5}
 
-/* 状态面板 */
-.status-card {
-  background: linear-gradient(135deg, rgba(255,215,0,0.08), rgba(255,140,0,0.06));
-  border: 1px solid rgba(255,215,0,0.18);
-  border-radius: 16px;
-  padding: 24px;
-  margin-bottom: 24px;
-}
-.status-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 12px;
-}
-.status-title {
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--accent);
-  margin: 0;
-}
-.risk-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
-  border-radius: 20px;
-  font-size: 13px;
-  font-weight: 600;
-  background: rgba(255,255,255,0.08);
-  border: 1px solid var(--border);
-}
-.risk-dot {
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  background: #f87171;
-  box-shadow: 0 0 8px #f87171;
-}
-.status-desc {
-  color: #cbd5e1;
-  font-size: 15px;
-  margin-bottom: 14px;
-}
-.signal-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-.signal-list li {
-  padding: 8px 0;
-  border-bottom: 1px solid rgba(255,255,255,0.04);
-  font-size: 14px;
-  color: var(--muted);
-}
-.signal-list li:last-child { border-bottom: none; }
+/* ---------- cards ---------- */
+.grid{display:grid; gap:14px; margin-bottom:18px}
+.prices{grid-template-columns:repeat(5,minmax(0,1fr))}
+.ratios{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media (max-width:860px){.prices{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:560px){.prices{grid-template-columns:repeat(2,minmax(0,1fr))}.ratios{grid-template-columns:minmax(0,1fr)}}
 
-/* 图表 */
-.chart-wrap {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 20px;
-  margin-bottom: 24px;
+.card{
+  position:relative; background:var(--panel); border:1px solid var(--border);
+  border-radius:var(--radius); padding:16px 16px 14px; box-shadow:var(--shadow);
+  transition:transform .18s ease, border-color .18s ease, background .18s ease;
 }
-.chart-title {
-  font-size: 14px;
-  color: var(--muted);
-  margin-bottom: 12px;
+.card:hover{transform:translateY(-2px); border-color:var(--border-strong); background:var(--panel-strong)}
+.card-head{display:flex; align-items:center; gap:8px; margin-bottom:10px}
+.dot{width:9px; height:9px; border-radius:50%; background:var(--dot); box-shadow:0 0 12px var(--dot); flex:none}
+.card-label{font-size:13.5px; color:var(--muted)}
+.unit{font-size:11px; color:var(--dim); margin-left:auto; font-variant-numeric:tabular-nums}
+.badge{
+  font-size:10.5px; padding:2px 7px; border-radius:999px; color:#fca5a5;
+  border:1px solid rgba(248,113,113,.4); background:rgba(248,113,113,.1);
 }
-svg.chart {
-  width: 100%;
-  height: 220px;
-}
+.price-value{font-size:26px; font-weight:750; letter-spacing:.01em; font-variant-numeric:tabular-nums; line-height:1.25}
+.change{margin-top:6px; font-size:13px; font-variant-numeric:tabular-nums; display:flex; align-items:baseline; gap:8px; flex-wrap:wrap}
+.change-base{font-size:11px; color:var(--dim)}
+.up{color:var(--up)} .down{color:var(--down)} .flat{color:var(--flat)} .muted{color:var(--dim)}
 
-/* 解读区 */
-.insight {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 20px;
-  margin-bottom: 24px;
+.ratio{text-align:center}
+.ratio-label{font-size:13px; color:var(--muted); letter-spacing:.04em}
+.ratio-value{font-size:30px; font-weight:750; margin:4px 0 2px; font-variant-numeric:tabular-nums}
+.ratio-desc{font-size:11.5px; color:var(--dim)}
+.ratio-state{font-size:12px; margin-top:6px; color:var(--muted)}
+.ratio-state.high{color:#fbbf24}
+.ratio-context{font-size:11.5px; color:var(--muted); margin-top:6px}
+.ratio-context b{color:var(--text)}
+.ptrack{
+  position:relative; height:5px; margin:8px auto 2px; width:86%;
+  background:rgba(255,255,255,.09); border-radius:999px; overflow:visible;
 }
-.insight h3 {
-  margin: 0 0 10px;
-  font-size: 16px;
-  color: var(--text);
-}
-.insight p {
-  margin: 0;
-  font-size: 14px;
-  color: var(--muted);
-  line-height: 1.8;
-}
+.pfill{position:absolute; inset:0 auto 0 0; height:100%; background:linear-gradient(90deg,rgba(96,165,250,.55),rgba(245,197,66,.75)); border-radius:999px}
+.pmark{position:absolute; top:50%; width:9px; height:9px; margin-left:-4.5px; border-radius:50%; background:#fff; transform:translateY(-50%); box-shadow:0 0 8px rgba(255,255,255,.7)}
+.tick{position:absolute; top:-4px; bottom:-4px; width:1px; background:rgba(255,255,255,.55); margin-left:-.5px}
+.ratio .change{justify-content:center; margin-top:8px}
 
-/* footer */
-footer {
-  text-align: center;
-  color: #475569;
-  font-size: 12px;
-  margin-top: 40px;
+/* ---------- panels ---------- */
+.panel{
+  background:var(--panel); border:1px solid var(--border); border-radius:20px;
+  padding:22px; margin-bottom:18px; box-shadow:var(--shadow);
 }
-footer a { color: #64748b; }
+.panel-head{display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:14px; flex-wrap:wrap}
+.panel-head h3{margin:0; font-size:15px; font-weight:700; color:var(--text)}
+.panel-sub{margin-left:10px; font-size:12px; font-weight:400; color:var(--dim)}
+.panel-legend{font-size:11.5px; color:var(--dim); display:flex; align-items:center; gap:6px}
+.legend-line{width:16px; height:2px; background:var(--c); border-radius:2px}
 
-@media (max-width: 520px) {
-  .grid-5 { grid-template-columns: repeat(2, 1fr); }
-  .grid-3 { grid-template-columns: 1fr; }
-  header h1 { font-size: 22px; }
+/* ---------- status ---------- */
+.status{background:linear-gradient(160deg,rgba(245,197,66,.07),rgba(255,255,255,.02) 55%); border-color:rgba(245,197,66,.22)}
+.status-head{display:flex; gap:24px; justify-content:space-between; align-items:flex-start; flex-wrap:wrap}
+.status-kicker{font-size:11.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted)}
+.status-title{margin:4px 0 8px; font-size:26px; font-weight:800; color:var(--gold)}
+.status-desc{margin:0; font-size:14.5px; color:#cbd5e1; max-width:56ch}
+.risk{min-width:220px; flex:1 1 220px; max-width:320px}
+.risk-head{display:flex; justify-content:space-between; font-size:12px; color:var(--muted); margin-bottom:6px}
+.risk-head b{color:var(--text); font-size:13px}
+.risk-track{height:7px; border-radius:999px; background:rgba(255,255,255,.1); overflow:hidden}
+.risk-fill{display:block; height:100%; background:var(--risk); border-radius:999px; box-shadow:0 0 14px var(--risk)}
+.risk-scale{display:flex; justify-content:space-between; font-size:10.5px; color:var(--dim); margin-top:4px}
+
+.quadrant-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin:22px 0 18px}
+@media (max-width:720px){.quadrant-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.q{
+  border-radius:14px; padding:14px 12px; border:1px solid var(--border);
+  background:rgba(255,255,255,.02); opacity:.45; transition:all .22s ease;
+}
+.q.active{
+  opacity:1; border-color:color-mix(in srgb, var(--q) 55%, transparent);
+  background:linear-gradient(150deg,color-mix(in srgb, var(--q) 26%,transparent),transparent 70%);
+  box-shadow:0 0 0 1px color-mix(in srgb, var(--q) 30%,transparent), 0 16px 32px -20px var(--q);
+  transform:translateY(-1px);
+}
+.q-top{display:flex; align-items:center; justify-content:space-between; margin-bottom:6px}
+.q-code{font-size:11px; font-weight:800; color:#fff; background:var(--q); padding:1px 7px; border-radius:6px; opacity:.9}
+.q-flag{font-size:10px; color:var(--gold); letter-spacing:.1em}
+.q-name{font-size:15px; font-weight:700}
+.q-desc{font-size:11.5px; color:var(--muted); margin-top:3px}
+
+.signals{list-style:none; padding:0; margin:0}
+.signals li{padding:9px 0; border-top:1px solid rgba(255,255,255,.05); font-size:13.5px; color:#cbd5e1}
+.signals li:first-child{border-top:none}
+.method{margin-top:14px; padding-top:12px; border-top:1px dashed rgba(255,255,255,.08); font-size:11.5px; color:var(--dim)}
+
+/* ---------- trend ---------- */
+.trend-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:12px}
+@media (max-width:640px){.trend-grid{grid-template-columns:minmax(0,1fr)}}
+.trend-cell{background:rgba(255,255,255,.02); border:1px solid var(--border); border-radius:12px; padding:12px 14px}
+.trend-label{font-size:12.5px; color:var(--muted); margin-bottom:6px}
+.trend-vals{display:flex; align-items:center; gap:8px; font-size:13.5px; font-variant-numeric:tabular-nums}
+.trend-k{font-size:10.5px; color:var(--dim)}
+
+/* ---------- charts ---------- */
+.charts{display:grid; gap:18px; grid-template-columns:minmax(0,1fr); margin-bottom:18px}
+.chart-panel{margin-bottom:0}
+/* 折线由 SVG 绘制，坐标文字用 HTML 叠加，避免随宽度缩成小字 */
+.chart-box{position:relative; height:215px}
+.chart-plot{position:absolute; inset:14px 12px 26px 56px}
+.chart-svg{position:absolute; inset:0; width:100%; height:100%; overflow:visible}
+.chart-line{fill:none; stroke-width:2; stroke-linejoin:round; stroke-linecap:round}
+.gridline{stroke:rgba(255,255,255,.055); stroke-width:1}
+.threshold{stroke:rgba(245,197,66,.55); stroke-width:1.2; stroke-dasharray:5 5}
+.ylab{position:absolute; left:-9px; transform:translate(-100%,-50%); font-size:11px; color:var(--dim); font-variant-numeric:tabular-nums; white-space:nowrap}
+.xlab{position:absolute; bottom:-21px; font-size:11px; color:var(--dim); white-space:nowrap}
+.tlab{position:absolute; right:2px; transform:translateY(-140%); font-size:10.5px; color:rgba(245,197,66,.85); white-space:nowrap; text-shadow:0 0 5px #080b12,0 0 10px #080b12}
+.vlab{position:absolute; font-size:12.5px; font-weight:700; white-space:nowrap; transform:translate(-100%,-165%); font-variant-numeric:tabular-nums; text-shadow:0 0 5px #080b12,0 0 10px #080b12,0 0 2px #080b12}
+.vlab.below{transform:translate(-100%,70%)}
+.chart-dot{position:absolute; width:8px; height:8px; border-radius:50%; background:var(--c); transform:translate(-50%,-50%); box-shadow:0 0 12px var(--c)}
+.hotspot{position:absolute; width:11px; height:11px; margin:-5.5px 0 0 -5.5px; border-radius:50%; background:transparent; cursor:crosshair}
+.hotspot:hover{background:rgba(255,255,255,.22)}
+.chart-empty{padding:36px 12px; text-align:center; color:var(--dim); font-size:13px; border:1px dashed var(--border); border-radius:12px}
+
+/* ---------- strip ---------- */
+.strip{display:flex; gap:3px; flex-wrap:wrap}
+.strip-cell{width:14px; height:14px; border-radius:4px; background:var(--c); opacity:.85}
+.strip-cell:hover{opacity:1; outline:1px solid rgba(255,255,255,.5)}
+.strip-legend{font-size:11.5px; color:var(--dim); margin-top:10px}
+.strip-empty{font-size:13px; color:var(--dim)}
+
+/* ---------- notice / footer ---------- */
+.notice h3{margin:0 0 8px; font-size:15px}
+.notice p{margin:0; font-size:13px; color:var(--muted); line-height:1.8}
+.notice strong{color:#fca5a5}
+.site-foot{text-align:center; color:#475569; font-size:12px; margin-top:34px}
+.site-foot p{margin:4px 0}
+.site-foot a{color:#64748b; border-bottom-color:transparent}
+
+@media (max-width:640px){.chart-box{height:170px}.chart-plot{inset:10px 8px 24px 48px}}
+@media (prefers-reduced-motion:reduce){
+  *{transition:none !important; animation:none !important}
+}
+@media print{
+  body{background:#fff; color:#111}
+  .card,.panel{border-color:#ddd; background:#fff; box-shadow:none}
+  .site-foot{color:#666}
 }
 </style>
 </head>
 <body>
-<div class="container">
-  <header>
-    <h1>🥇 <span>贵金属信号灯</span></h1>
-    <div class="meta">Allocation Lab 宏观框架 | 数据更新于 2026-05-15 22:30</div>
-    <div class="meta" style="font-size:11px;opacity:.7">来源: 黄金(GC=F), 白银(SI=F), 铜(HG=F), 铝(ALI=F), 美元指数(DX-Y.NYB)</div>
-  </header>
 
-  <div class="grid-5">
-    
-        <div class="card price-card">
-            <div class="card-header">
-                <span class="dot" style="background:#ffd700"></span>
-                <span class="label">黄金</span>
-                <span class="unit">USD/oz</span>
-            </div>
-            <div class="value">4,564.80</div>
-            <div class="change up">▲ +0.11%</div>
-        </div>
+  <div class="wrap">
+    <header class="site-head">
+      <div class="brand"><span class="brand-mark">🥇</span> 贵金属信号灯</div>
+      <p class="tagline">Allocation Lab 宏观交易框架 · 每日市场状态跟踪</p>
+      <div class="meta-row">
+        <span class="pill">观察日 <b>2026-05-15</b></span>
         
-        <div class="card price-card">
-            <div class="card-header">
-                <span class="dot" style="background:#c0c0c0"></span>
-                <span class="label">白银</span>
-                <span class="unit">USD/oz</span>
-            </div>
-            <div class="value">77.46</div>
-            <div class="change up">▲ +0.17%</div>
-        </div>
-        
-        <div class="card price-card">
-            <div class="card-header">
-                <span class="dot" style="background:#b87333"></span>
-                <span class="label">铜</span>
-                <span class="unit">USD/lb</span>
-            </div>
-            <div class="value">6.32</div>
-            <div class="change down">▼ -0.05%</div>
-        </div>
-        
-        <div class="card price-card">
-            <div class="card-header">
-                <span class="dot" style="background:#a1a1aa"></span>
-                <span class="label">铝</span>
-                <span class="unit">USD/lb</span>
-            </div>
-            <div class="value">1.59</div>
-            <div class="change down">▼ -0.03%</div>
-        </div>
-        
-        <div class="card price-card">
-            <div class="card-header">
-                <span class="dot" style="background:#60a5fa"></span>
-                <span class="label">美元指数</span>
-                <span class="unit"></span>
-            </div>
-            <div class="value">99.16</div>
-            <div class="change down">▼ -0.01%</div>
-        </div>
-        
-  </div>
-
-  <div class="grid-3">
-    
-        <div class="card ratio-card">
-            <div class="ratio-label">金银比</div>
-            <div class="ratio-value">58.9300</div>
-            <div class="ratio-desc">风险偏好温度计</div>
-            <div class="change down">▼ -0.07%</div>
-        </div>
-        
-        <div class="card ratio-card">
-            <div class="ratio-label">铜金比</div>
-            <div class="ratio-value">0.0014</div>
-            <div class="ratio-desc">增长 vs 防守</div>
-            <div class="change down">▼ -0.72%</div>
-        </div>
-        
-        <div class="card ratio-card">
-            <div class="ratio-label">铝铜比</div>
-            <div class="ratio-value">0.2517</div>
-            <div class="ratio-desc">供给/能源约束</div>
-            <div class="change neutral"> </div>
-        </div>
-        
-  </div>
-
-  <div class="quadrant-section">
-    <div class="section-title">📊 四象限市场状态</div>
-    <div class="quadrant-grid">
-      <div class="q q-A ">
-        <div class="q-name">A · 进攻盘</div>
-        <div class="q-desc">铜银同强 · 风险偏好高</div>
+        <span class="pill">样本 <b>1</b> 个交易日</span>
       </div>
-      <div class="q q-B ">
-        <div class="q-name">B · 防守盘</div>
-        <div class="q-desc">金强铜弱 · 避险情绪浓</div>
+    </header>
+
+    <div class="banner banner-info" role="status"><span class="banner-icon">ℹ️</span><div>还没有抓取到最新快照，以下内容由最近一次历史记录推算。</div></div><div class="banner banner-warn" role="alert"><span class="banner-icon">🕒</span><div><strong>数据可能滞后：</strong>观察日为 2026-05-15，距今 171 天，请以最新行情为准。</div></div>
+
+    <section class="grid prices" aria-label="主要品种价格">
+      
+      <article class="card price">
+        <header class="card-head">
+          <span class="dot" style="--dot:#f5c542"></span>
+          <span class="card-label">黄金</span>
+          <span class="unit">USD/oz</span>
+          
+        </header>
+        <div class="price-value">4,564.80</div>
+        <div class="change muted">— 无涨跌数据</div>
+      </article>
+      <article class="card price">
+        <header class="card-head">
+          <span class="dot" style="--dot:#cbd5e1"></span>
+          <span class="card-label">白银</span>
+          <span class="unit">USD/oz</span>
+          
+        </header>
+        <div class="price-value">77.46</div>
+        <div class="change muted">— 无涨跌数据</div>
+      </article>
+      <article class="card price">
+        <header class="card-head">
+          <span class="dot" style="--dot:#d08a4e"></span>
+          <span class="card-label">铜</span>
+          <span class="unit">USD/lb</span>
+          
+        </header>
+        <div class="price-value">6.320</div>
+        <div class="change muted">— 无涨跌数据</div>
+      </article>
+      <article class="card price">
+        <header class="card-head">
+          <span class="dot" style="--dot:#9aa4b2"></span>
+          <span class="card-label">铝</span>
+          <span class="unit">USD/lb</span>
+          
+        </header>
+        <div class="price-value">1.5908</div>
+        <div class="change muted">— 无涨跌数据</div>
+      </article>
+      <article class="card price">
+        <header class="card-head">
+          <span class="dot" style="--dot:#5ea3ff"></span>
+          <span class="card-label">美元指数</span>
+          
+          
+        </header>
+        <div class="price-value">99.16</div>
+        <div class="change muted">— 无涨跌数据</div>
+      </article>
+    </section>
+
+    <section class="grid ratios" aria-label="核心比率">
+      
+      <article class="card ratio">
+        <div class="ratio-label">金银比</div>
+        <div class="ratio-value">58.93</div>
+        <div class="ratio-desc">风险偏好温度计</div>
+        <div class="ratio-state low">低于阈值 75</div>
+        <div class="ratio-context muted">历史样本不足，暂不显示分位</div>
+        <div class="change muted">— 无涨跌数据</div>
+      </article>
+      <article class="card ratio">
+        <div class="ratio-label">铜金比</div>
+        <div class="ratio-value">0.0014</div>
+        <div class="ratio-desc">增长 vs 防守</div>
+        <div class="ratio-state low">低于阈值 0.002</div>
+        <div class="ratio-context muted">历史样本不足，暂不显示分位</div>
+        <div class="change muted">— 无涨跌数据</div>
+      </article>
+      <article class="card ratio">
+        <div class="ratio-label">铝铜比</div>
+        <div class="ratio-value">0.2517</div>
+        <div class="ratio-desc">供给 / 能源约束</div>
+        <div class="ratio-state low">低于阈值 0.6</div>
+        <div class="ratio-context muted">历史样本不足，暂不显示分位</div>
+        <div class="change muted">— 无涨跌数据</div>
+      </article>
+    </section>
+
+    <section class="panel status">
+      <div class="status-head">
+        <div>
+          <div class="status-kicker">当前象限</div>
+          <h2 class="status-title">D · 高风险盘</h2>
+          <p class="status-desc">银强铜弱，后半段行情特征，波动明显加大。</p>
+        </div>
+        
+      <div class="risk" role="img" aria-label="风险等级 高，评分 85 / 100">
+        <div class="risk-head"><span>风险等级</span><b>高</b></div>
+        <div class="risk-track"><span class="risk-fill" style="width:85%;--risk:#f87171"></span></div>
+        <div class="risk-scale"><span>低</span><span>中</span><span>高</span></div>
       </div>
-      <div class="q q-C ">
-        <div class="q-name">C · 复杂盘</div>
-        <div class="q-desc">金铜同强 · 通胀+不确定</div>
       </div>
-      <div class="q q-D active">
-        <div class="q-name">D · 高风险盘</div>
-        <div class="q-desc">银强铜弱 · 后半段行情</div>
+      <div class="quadrant-grid">
+        <div class="q" style="--q:#16a34a">
+          <div class="q-top"><span class="q-code">A</span><span class="q-flag"></span></div>
+          <div class="q-name">进攻盘</div>
+          <div class="q-desc">铜银同强 · 风险偏好高</div>
+        </div>
+        <div class="q" style="--q:#2563eb">
+          <div class="q-top"><span class="q-code">B</span><span class="q-flag"></span></div>
+          <div class="q-name">防守盘</div>
+          <div class="q-desc">金强铜弱 · 避险情绪浓</div>
+        </div>
+        <div class="q" style="--q:#ea580c">
+          <div class="q-top"><span class="q-code">C</span><span class="q-flag"></span></div>
+          <div class="q-name">复杂盘</div>
+          <div class="q-desc">金铜同强 · 通胀+不确定</div>
+        </div>
+        <div class="q active" style="--q:#dc2626" aria-current="true">
+          <div class="q-top"><span class="q-code">D</span><span class="q-flag">当前</span></div>
+          <div class="q-name">高风险盘</div>
+          <div class="q-desc">银强铜弱 · 后半段行情</div>
+        </div>
       </div>
-    </div>
+      <ul class="signals"><li>金银比 58.93 低于阈值 75（银强金弱，风险偏好偏高）</li><li>铜金比 0.0014 低于阈值 0.002（铜弱金强，增长预期偏弱）</li><li>铝铜比 0.2517 低于阈值 0.6（需求端定价为主）</li></ul>
+      <div class="method">判定方法：金银比阈值 75（金强 / 银强）× 铜金比阈值 0.002（铜强 / 铜弱）</div>
+    </section>
+
+    <section class="panel trend-panel"><div class="panel-head"><h3>变化率<span class="panel-sub">比率相对自身</span></h3></div><div class="trend-grid">
+        <div class="trend-cell">
+          <div class="trend-label">金银比</div>
+          <div class="trend-vals"><span class="trend-k">5日</span><span class="muted">—</span><span class="trend-k">20日</span><span class="muted">—</span></div>
+        </div>
+        <div class="trend-cell">
+          <div class="trend-label">铜金比</div>
+          <div class="trend-vals"><span class="trend-k">5日</span><span class="muted">—</span><span class="trend-k">20日</span><span class="muted">—</span></div>
+        </div>
+        <div class="trend-cell">
+          <div class="trend-label">铝铜比</div>
+          <div class="trend-vals"><span class="trend-k">5日</span><span class="muted">—</span><span class="trend-k">20日</span><span class="muted">—</span></div>
+        </div></div></section>
+
+    <section class="charts">
+      
+      <section class="panel chart-panel">
+        <div class="panel-head">
+          <h3>金银比<span class="panel-sub">风险偏好温度计</span></h3>
+          <div class="panel-legend"><span class="legend-line" style="--c:#fbbf24"></span>每日收盘</div>
+        </div>
+        <div class="chart-empty">历史样本不足（至少需要 2 个交易日），等待回填后自动生成走势图。</div>
+      </section>
+      <section class="panel chart-panel">
+        <div class="panel-head">
+          <h3>铜金比<span class="panel-sub">增长 vs 防守</span></h3>
+          <div class="panel-legend"><span class="legend-line" style="--c:#60a5fa"></span>每日收盘</div>
+        </div>
+        <div class="chart-empty">历史样本不足（至少需要 2 个交易日），等待回填后自动生成走势图。</div>
+      </section>
+    </section>
+
+    <section class="panel strip-panel">
+      <div class="panel-head"><h3>最近状态<span class="panel-sub">每日象限</span></h3></div>
+      <div class="strip"><span class="strip-cell" style="--c:#dc2626" title="2026-05-15 · D 高风险盘"></span></div><div class="strip-legend">最近 1 个交易日分布：D 1天</div>
+    </section>
+
+    <section class="panel actions">
+      <div class="panel-head"><h3>🎯 建议动作<span class="panel-sub">框架推导，非投资建议</span></h3></div>
+      <ul class="signals"><li>策略风格：谨慎应对，逐步获利了结</li><li>仓位参考：降低杠杆，保留现金等待更清晰信号</li><li>风险提示：后半段行情，避免追高，提前设定止损</li></ul>
+    </section>
+
+    <section class="panel notice">
+      <h3>⚠️ 使用须知</h3>
+      <p>本工具仅为宏观状态跟踪与数据可视化，<strong>不构成任何投资建议</strong>。金属价格受多重因素驱动，历史规律不代表未来表现；四象限基于经验阈值划分，请结合自身风险承受能力独立决策。</p>
+    </section>
+
+    <footer class="site-foot">
+      <p>数据来源 Yahoo Finance（—）· 生成于 2026-11-02 16:27</p>
+      <p><a href="https://wzxiong.github.io/metal-signal/" target="_blank" rel="noopener">在线地址</a> · <a href="https://mp.weixin.qq.com/s/HigsrOVaJMtpY2M0_oeWJA" target="_blank" rel="noopener">参考文章：Allocation Lab 宏观交易框架</a></p>
+    </footer>
   </div>
-
-  <div class="status-card">
-    <div class="status-header">
-      <div class="status-title">当前状态：高风险盘</div>
-      <div class="risk-badge"><span class="risk-dot"></span> 风险等级: 高</div>
-    </div>
-    <div class="status-desc">银强铜弱，后半段行情特征，波动加大</div>
-    <ul class="signal-list">
-      <li>▸ 金银比 58.93 < 70，风险偏好较高</li><li>▸ 铜金比 0.00138 偏低，增长预期偏弱</li><li>▸ 铝铜比 0.2517 正常，需求端定价为主</li>
-    </ul>
-  </div>
-
-  <div class="chart-wrap">
-    <div class="chart-title">📈 历史走势（近60个交易日）</div>
-    <svg class="chart" id="historyChart" viewBox="0 0 800 220" preserveAspectRatio="none"></svg>
-  </div>
-
-  <div class="status-card" style="border-color:rgba(255,255,255,0.08);background:linear-gradient(135deg,rgba(96,165,250,0.06),rgba(139,92,246,0.04));">
-    <div class="status-header">
-      <div class="status-title" style="color:#60a5fa;">🎯 建议动作</div>
-    </div>
-    <ul class="signal-list">
-      <li>策略风格：谨慎应对，逐步获利了结</li><li>仓位参考：降低杠杆，持有现金等待更清晰信号</li><li>风险提示：后半段行情特征，避免追高，准备好止损策略</li>
-    </ul>
-  </div>
-
-  <div class="insight">
-    <h3>⚠️ 使用须知</h3>
-    <p>
-      本工具仅为宏观状态跟踪与数据可视化，不构成任何投资建议。金属价格受多重因素驱动，历史规律不代表未来表现。
-      四象限划分基于经验阈值，仅供参考；请结合自身的风险承受能力与资产配置目标独立决策。
-    </p>
-  </div>
-
-  <footer>
-    <p>Generated by 贵金属信号灯 · 数据来自 Yahoo Finance</p>
-    <p style="margin-top:4px"><a href="https://mp.weixin.qq.com/s/HigsrOVaJMtpY2M0_oeWJA" target="_blank">参考文章: Allocation Lab 宏观交易框架</a></p>
-  </footer>
-</div>
-
-<script>
-(function(){
-  const data = [{"ts": "2026-05-15 22:28", "gsr": 58.97, "cgr": 0.00139, "quadrant": "D"}, {"ts": "2026-05-15 22:30", "gsr": 58.93, "cgr": 0.00138, "quadrant": "D"}];
-  if (!data.length) return;
-
-  // 提取有效序列
-  const gsrData = data.map(d => ({ts: d.ts, v: d.gsr})).filter(d => d.v != null);
-  const cgrData = data.map(d => ({ts: d.ts, v: d.cgr})).filter(d => d.v != null);
-
-  function drawLine(series, color, yLabel, offsetY, height) {
-    if (!series.length) return '';
-    const vals = series.map(d => d.v);
-    const min = Math.min(...vals);
-    const max = Math.max(...vals);
-    const range = max - min || 1;
-    const pad = 20;
-    const w = 800;
-    const h = height || 90;
-    const step = (w - pad*2) / (series.length - 1 || 1);
-
-    let path = `M ${pad} ${h - ((series[0].v - min)/range)*(h-20) - 10}`;
-    series.forEach((d, i) => {
-      const x = pad + i*step;
-      const y = h - ((d.v - min)/range)*(h-20) - 10;
-      path += ` L ${x} ${y}`;
-    });
-
-    // 最近点圆点
-    const last = series[series.length-1];
-    const lx = pad + (series.length-1)*step;
-    const ly = h - ((last.v - min)/range)*(h-20) - 10;
-
-    return `
-      <text x="${pad}" y="${offsetY + 14}" fill="#94a3b8" font-size="12">${yLabel}</text>
-      <path d="${path}" fill="none" stroke="${color}" stroke-width="2" opacity="0.9" transform="translate(0, ${offsetY})"/>
-      <circle cx="${lx}" cy="${ly + offsetY}" r="4" fill="${color}"/>
-      <text x="${lx+8}" y="${ly + offsetY + 4}" fill="${color}" font-size="11">${last.v.toFixed(2)}</text>
-    `;
-  }
-
-  const svg = document.getElementById('historyChart');
-  svg.innerHTML = `
-    ${drawLine(gsrData, '#fbbf24', '金银比 GSR', 0, 90)}
-    ${drawLine(cgrData, '#60a5fa', '铜金比 CGR', 110, 90)}
-  `;
-})();
-</script>
 </body>
 </html>

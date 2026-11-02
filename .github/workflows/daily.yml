@@ -1,47 +1,89 @@
-name: Daily Metal Signal Update
+name: Daily Metal Signal
 
 on:
   schedule:
-    # 北京时间 09:00 = UTC 01:00 (夏令时) 或 01:00 (非夏令时大概)
-    # 设为 UTC 01:30，对应北京时间 09:30（夏令时）或 09:30（标准时间）
+    # 北京时间 09:30（中国不使用夏令时，UTC+8 固定）
     - cron: '30 1 * * *'
-  workflow_dispatch:  # 支持手动触发
+  # 代码/配置有改动时也跑一次，保证上线内容与代码一致。
+  # 机器人自己提交的数据快照用 GITHUB_TOKEN 推送，不会再次触发本工作流。
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'data/**'
+      - 'docs/**'
+  workflow_dispatch:
+    inputs:
+      backfill:
+        description: '强制回填最近两年历史（首次运行可勾选）'
+        type: boolean
+        default: false
 
 permissions:
-  contents: read
+  contents: write      # 需要把 data/ 与 docs/ 提交回仓库
   pages: write
   id-token: write
 
 concurrency:
-  group: "pages"
+  group: pages
   cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-
-      - name: Cache pip dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          python-version: '3.12'
+          cache: pip
 
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Fetch latest data
-        run: python scripts/fetch_data.py
+      - name: Run tests
+        run: python -m unittest discover -s tests -t . -v
+
+      - name: Backfill history
+        run: |
+          if [ "${{ inputs.backfill }}" = "true" ]; then
+            python -m scripts.backfill --force
+          else
+            python -m scripts.backfill
+          fi
+
+      - name: Fetch latest quotes
+        run: python -m scripts.fetch_data
 
       - name: Build static site
-        run: python scripts/build_site.py
+        run: python -m scripts.build_site
+
+      - name: Commit data back
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data docs
+          if git diff --cached --quiet; then
+            echo "数据没有变化，跳过提交"
+            exit 0
+          fi
+          git commit -m "chore(data): 更新 $(date -u '+%Y-%m-%d') 行情快照"
+          # 若期间有人手动提交，rebase 后重试
+          for attempt in 1 2 3; do
+            if git pull --rebase --autostash origin "${GITHUB_REF_NAME}" && git push; then
+              exit 0
+            fi
+            echo "第 ${attempt} 次推送失败，5 秒后重试"
+            sleep 5
+          done
+          echo "推送失败" >&2
+          exit 1
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
@@ -49,12 +91,12 @@ jobs:
           path: docs/
 
   deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build
-    timeout-minutes: 5
     steps:
       - name: Deploy to GitHub Pages
         id: deployment

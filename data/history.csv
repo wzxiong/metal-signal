@@ -1,3 +1,2 @@
-timestamp,beijing,gold,silver,copper,aluminum,dxy,gsr,copper_gold_ratio,aluminum_copper_ratio,quadrant
-2026-05-15T22:28:00,2026-05-15 22:28,4559.9,77.325,6.323,1.5913,99.172,58.97,0.00139,0.2517,D
-2026-05-15T14:30:19.171103+00:00,2026-05-15 22:30,4564.8,77.46,6.32,1.5908,99.159,58.93,0.00138,0.2517,D
+date,timestamp,gold,silver,copper,aluminum,dxy,gsr,copper_gold_ratio,aluminum_copper_ratio,quadrant
+2026-05-15,2026-05-15T14:30:19.171103+00:00,4564.8,77.46,6.32,1.5908,99.159,58.93,0.00138,0.2517,D

@@ -1,2 +1,2 @@
-requests==2.31.0
-yfinance==0.2.54
+# 只依赖 requests：直接调用 Yahoo chart 接口，不再依赖 yfinance / pandas
+requests>=2.32.3,<3

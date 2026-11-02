@@ -1,7 +1,7 @@
 {
   "schema": 2,
-  "timestamp": "2026-11-02T08:43:46+00:00",
-  "timestamp_beijing": "2026-11-02 16:43",
+  "timestamp": "2026-11-02T08:48:21+00:00",
+  "timestamp_beijing": "2026-11-02 16:48",
   "as_of": "2026-11-02",
   "stale": false,
   "stale_reason": null,
@@ -14,34 +14,57 @@
     "美元指数 DX-Y.NYB"
   ],
   "prices": {
-    "gold": 3904.3,
-    "silver": 50.325,
-    "copper": 6.53,
-    "aluminum": 1.439929,
-    "dxy": 101.648
+    "gold": 3905.0,
+    "silver": 50.3,
+    "copper": 6.528,
+    "aluminum": 1.440836,
+    "dxy": 101.604
   },
   "ratios": {
-    "gsr": 77.58,
-    "silver_gold_ratio": 0.01289,
+    "gsr": 77.63,
+    "silver_gold_ratio": 0.01288,
     "copper_gold_ratio": 0.00167,
-    "aluminum_copper_ratio": 0.2205
+    "aluminum_copper_ratio": 0.2207
   },
   "signals": {
-    "quadrant": "B",
-    "quadrant_name": "防守盘",
-    "description": "黄金强、铜弱，避险情绪浓，防守资产占优。",
-    "risk_level": "中",
-    "risk_score": 50,
-    "method": "金银比阈值 75（金强 / 银强）× 铜金比阈值 0.002（铜强 / 铜弱）",
+    "quadrant": "C",
+    "quadrant_name": "复杂盘",
+    "description": "金铜同强，通胀与不确定性并存，需要均衡应对。",
+    "risk_level": "中高",
+    "risk_score": 70,
+    "method": "金银比 65.91（金强 / 银强）× 铜金比 0.0013（铜强 / 铜弱），取近 250 个交易日中位数",
+    "thresholds": {
+      "gsr": {
+        "value": 65.905,
+        "display": "65.91",
+        "source": "median",
+        "samples": 250,
+        "default": 75.0
+      },
+      "copper_gold_ratio": {
+        "value": 0.001325,
+        "display": "0.0013",
+        "source": "median",
+        "samples": 250,
+        "default": 0.002
+      },
+      "aluminum_copper_ratio": {
+        "value": 0.2439,
+        "display": "0.2439",
+        "source": "median",
+        "samples": 250,
+        "default": 0.6
+      }
+    },
     "details": [
-      "金银比 77.58 高于阈值 75（金强银弱，避险情绪偏浓），处于近 250 个交易日 93% 分位",
-      "铜金比 0.0017 低于阈值 0.002（铜弱金强，增长预期偏弱），处于近 250 个交易日 100% 分位",
-      "铝铜比 0.2205 低于阈值 0.6（需求端定价为主），处于近 250 个交易日 4% 分位"
+      "金银比 77.63 高于阈值 65.91（近 250 个交易日中位，金强银弱，避险情绪偏浓），处于近 250 个交易日 93% 分位",
+      "铜金比 0.0017 高于阈值 0.0013（近 250 个交易日中位，铜强金弱，增长预期偏强），处于近 250 个交易日 100% 分位",
+      "铝铜比 0.2207 低于阈值 0.2439（近 250 个交易日中位，需求端定价为主），处于近 250 个交易日 4% 分位"
     ],
     "actions": [
-      "策略风格：防御为主，增配避险资产",
-      "仓位参考：降低风险敞口，提高现金 / 短债比例",
-      "风险提示：股票与商品波动加大，关注美元与利率走向"
+      "策略风格：均衡配置，不单一押注",
+      "仓位参考：保持对冲，黄金与工业金属均配",
+      "风险提示：通胀与不确定性并存，避免追涨杀跌"
     ],
     "context": {
       "gsr": {
@@ -65,51 +88,51 @@
     },
     "trend": {
       "gsr": {
-        "d5": 3.94,
-        "d20": 13.6
+        "d5": 4.01,
+        "d20": 13.68
       },
       "copper_gold_ratio": {
         "d5": 3.73,
         "d20": 5.7
       },
       "aluminum_copper_ratio": {
-        "d5": -1.83,
-        "d20": -1.17
+        "d5": -1.74,
+        "d20": -1.08
       }
     }
   },
   "changes": {
     "gold": {
-      "value": 5.4,
-      "pct": 0.14
+      "value": 6.1,
+      "pct": 0.16
     },
     "silver": {
-      "value": 1.228,
-      "pct": 2.5
+      "value": 1.203,
+      "pct": 2.45
     },
     "copper": {
-      "value": 0.0715,
-      "pct": 1.11
+      "value": 0.0695,
+      "pct": 1.08
     },
     "aluminum": {
-      "value": -0.061691,
-      "pct": -4.11
+      "value": -0.060784,
+      "pct": -4.05
     },
     "dxy": {
-      "value": -0.232,
-      "pct": -0.23
+      "value": -0.276,
+      "pct": -0.27
     },
     "gsr": {
-      "value": -1.83,
-      "pct": -2.3
+      "value": -1.78,
+      "pct": -2.24
     },
     "copper_gold_ratio": {
       "value": 1e-05,
       "pct": 0.6
     },
     "aluminum_copper_ratio": {
-      "value": -0.012,
-      "pct": -5.16
+      "value": -0.0118,
+      "pct": -5.08
     }
   },
   "baseline": {
@@ -122,12 +145,12 @@
     "from": "2024-11-04",
     "to": "2026-11-02"
   },
-  "gold": 3904.3,
-  "silver": 50.325,
-  "copper": 6.53,
-  "aluminum": 1.439929,
-  "dxy": 101.648,
-  "gsr": 77.58,
+  "gold": 3905.0,
+  "silver": 50.3,
+  "copper": 6.528,
+  "aluminum": 1.440836,
+  "dxy": 101.604,
+  "gsr": 77.63,
   "copper_gold_ratio": 0.00167,
-  "aluminum_copper_ratio": 0.2205
+  "aluminum_copper_ratio": 0.2207
 }

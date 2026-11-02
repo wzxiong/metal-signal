@@ -49,13 +49,8 @@ jobs:
       - name: Run tests
         run: python -m unittest discover -s tests -t . -v
 
-      # 先抓当日行情（关键路径，趁着请求配额还没被消耗）
-      - name: Fetch latest quotes
-        id: fetch
-        continue-on-error: true
-        run: python -m scripts.fetch_data
-
-      # 再补历史日线；历史充足时这一步直接跳过、不发请求
+      # 先补历史：历史充足时自动跳过（零请求）；不足时先补齐，
+      # 这样下面的"日涨跌"才是对比上一交易日，而不是对比一条几个月前的记录。
       - name: Backfill history
         continue-on-error: true
         run: |
@@ -64,6 +59,11 @@ jobs:
           else
             python -m scripts.backfill
           fi
+
+      - name: Fetch latest quotes
+        id: fetch
+        continue-on-error: true
+        run: python -m scripts.fetch_data
 
       # 即使行情降级也照常构建，让页面显示的"数据已滞后"第一时间可见
       - name: Build static site

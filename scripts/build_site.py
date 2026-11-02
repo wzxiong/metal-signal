@@ -33,7 +33,7 @@ from scripts.config import (
     REFERENCE_URL,
     SITE_URL,
 )
-from scripts.signals import build_signals, compute_ratios
+from scripts.signals import build_signals, compute_ratios, quadrant_code
 
 # ---------------------------------------------------------------- 常量
 
@@ -134,19 +134,22 @@ def render_ratio_card(
     latest: dict[str, Any],
     rows: list[dict[str, Any]],
     baseline_label: str,
+    threshold: dict[str, Any],
 ) -> str:
     value = latest.get(spec.key)
     change = (latest.get("changes") or {}).get(spec.key)
     context = (latest.get("signals", {}).get("context") or {}).get(spec.key)
+    cut = float(threshold.get("value", spec.threshold))
+    cut_text = threshold.get("display") or f"{cut:g}"
 
-    below = isinstance(value, (int, float)) and value < spec.threshold
+    below = isinstance(value, (int, float)) and value < cut
     state_text = "低于" if below else "高于"
     state_cls = "low" if below else "high"
 
     if context:
         pct = context.get("percentile")
         window = context.get("window", 0)
-        track = render_percentile_track(spec, rows, pct, window)
+        track = render_percentile_track(spec, rows, pct, window, cut, cut_text)
         context_html = (
             f'<div class="ratio-context">近 {window} 个交易日 '
             f'<b>{pct:.0f}%</b> 分位</div>{track}'
@@ -161,7 +164,8 @@ def render_ratio_card(
         <div class="ratio-label">{escape(spec.label)}</div>
         <div class="ratio-value">{fmt_number(value, spec.decimals)}</div>
         <div class="ratio-desc">{escape(spec.desc)}</div>
-        <div class="ratio-state {state_cls}">{state_text}阈值 {spec.threshold:g}</div>
+        <div class="ratio-state {state_cls}">{state_text}阈值 {cut_text}</div>
+        <div class="ratio-source">{escape(_threshold_source(threshold))}</div>
         {context_html}
         {change_markup(change, baseline_label)}
       </article>"""
@@ -173,8 +177,19 @@ def _percentile_of(value: float, values: Sequence[float]) -> float | None:
     return sum(1 for v in values if v <= value) / len(values) * 100
 
 
+def _threshold_source(threshold: dict[str, Any]) -> str:
+    if threshold.get("source") == "median":
+        return f"近 {threshold.get('samples', 0)} 个交易日中位"
+    return "框架默认阈值（历史不足）"
+
+
 def render_percentile_track(
-    spec: Any, rows: list[dict[str, Any]], pct: float | None, window: int
+    spec: Any,
+    rows: list[dict[str, Any]],
+    pct: float | None,
+    window: int,
+    cut: float,
+    cut_text: str,
 ) -> str:
     """百分位刻度条：标记当前位置与阈值位置。"""
     if pct is None:
@@ -182,7 +197,7 @@ def render_percentile_track(
 
     values = [float(r[spec.key]) for r in rows if isinstance(r.get(spec.key), (int, float))]
     window_values = values[-window:] if window else values
-    threshold_pct = _percentile_of(spec.threshold, window_values)
+    threshold_pct = _percentile_of(cut, window_values)
 
     pct_pos = min(max(pct, 1.5), 98.5)
 
@@ -191,7 +206,7 @@ def render_percentile_track(
         tick_pos = min(max(threshold_pct, 1.5), 98.5)
         tick = (
             f'<span class="tick" style="left:{tick_pos:.1f}%"'
-            f' title="阈值 {spec.threshold:g} 位于 {threshold_pct:.0f}% 分位"></span>'
+            f' title="阈值 {cut_text} 位于 {threshold_pct:.0f}% 分位"></span>'
         )
 
     return (
@@ -250,6 +265,7 @@ def render_chart(
     series: list[tuple[str, float]],
     color: str,
     uid: str,
+    threshold: dict[str, Any] | None = None,
 ) -> str:
     """预渲染折线图。
 
@@ -264,10 +280,12 @@ def render_chart(
             "等待回填后自动生成走势图。</div>"
         )
 
+    cut = float((threshold or {}).get("value", spec.threshold))
+    cut_text = (threshold or {}).get("display") or f"{cut:g}"
     values = [v for _, v in series]
     low, high = min(values), max(values)
-    low = min(low, spec.threshold)
-    high = max(high, spec.threshold)
+    low = min(low, cut)
+    high = max(high, cut)
     span = (high - low) or 1.0
     low -= span * 0.08
     high += span * 0.08
@@ -344,7 +362,7 @@ def render_chart(
                class="chart-svg" role="img"
                aria-label="{escape(spec.label)}近 {len(series)} 个交易日走势，当前 {values[-1]:.{decimals}f}">
             <title>{escape(spec.label)} 走势</title>
-            <desc>最近 {len(series)} 个交易日，区间 {min(values):.{decimals}f} 至 {max(values):.{decimals}f}，虚线为阈值 {spec.threshold:g}。</desc>
+            <desc>最近 {len(series)} 个交易日，区间 {min(values):.{decimals}f} 至 {max(values):.{decimals}f}，虚线为阈值 {cut_text}。</desc>
             <defs>
               <linearGradient id="grad-{uid}" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stop-color="{color}" stop-opacity="0.30"/>
@@ -355,12 +373,12 @@ def render_chart(
             <path d="{area}" fill="url(#grad-{uid})"/>
             <path d="{line}" class="chart-line" stroke="{color}"
                   vector-effect="non-scaling-stroke"/>
-            <line x1="0" y1="{py(spec.threshold):.1f}" x2="{width}" y2="{py(spec.threshold):.1f}"
+            <line x1="0" y1="{py(cut):.1f}" x2="{width}" y2="{py(cut):.1f}"
                   class="threshold" vector-effect="non-scaling-stroke"/>
           </svg>
           {"".join(y_labels)}
           {"".join(x_labels)}
-          <span class="tlab" style="top:{py_pct(spec.threshold):.2f}%">阈值 {spec.threshold:g}</span>
+          <span class="tlab" style="top:{py_pct(cut):.2f}%">阈值 {cut_text}</span>
           <span class="{last_cls}" style="left:{last_x:.2f}%;top:{last_y:.2f}%;color:{color}">
             {values[-1]:.{decimals}f}</span>
           <span class="chart-dot" style="left:{last_x:.2f}%;top:{last_y:.2f}%;--c:{color}"></span>
@@ -369,8 +387,26 @@ def render_chart(
       </div>"""
 
 
-def render_quadrant_strip(rows: list[dict[str, Any]], limit: int = 40) -> str:
-    recent = [r for r in rows if r.get("quadrant")][-limit:]
+def render_quadrant_strip(
+    rows: list[dict[str, Any]],
+    thresholds: dict[str, Any],
+    limit: int = 40,
+) -> str:
+    """按"当前阈值"回溯最近 N 天的象限，保证色带与今天的判定口径一致。"""
+    gsr_cut = float((thresholds.get("gsr") or {}).get("value", RATIOS_BY_KEY["gsr"].threshold))
+    cgr_cut = float(
+        (thresholds.get("copper_gold_ratio") or {}).get(
+            "value", RATIOS_BY_KEY["copper_gold_ratio"].threshold
+        )
+    )
+
+    recent = []
+    for row in rows[-limit * 2 :]:
+        code = quadrant_code(row.get("gsr"), row.get("copper_gold_ratio"), gsr_cut, cgr_cut)
+        if code:
+            recent.append({"date": row["date"], "quadrant": code})
+    recent = recent[-limit:]
+
     if not recent:
         return '<div class="strip-empty">暂无足够历史判定每日象限。</div>'
 
@@ -486,8 +522,16 @@ def render(
     price_cards = "".join(
         render_price_card(asset, latest, baseline_label or "上次") for asset in ASSETS
     )
+    thresholds = (signals.get("thresholds") or {})
     ratio_cards = "".join(
-        render_ratio_card(spec, latest, rows, baseline_label or "上次") for spec in RATIOS
+        render_ratio_card(
+            spec,
+            latest,
+            rows,
+            baseline_label or "上次",
+            thresholds.get(spec.key) or {"value": spec.threshold, "source": "default"},
+        )
+        for spec in RATIOS
     )
 
     details_html = "".join(
@@ -506,7 +550,13 @@ def render(
           <h3>{escape(spec.label)}<span class="panel-sub">{escape(spec.desc)}</span></h3>
           <div class="panel-legend"><span class="legend-line" style="--c:{color}"></span>每日收盘</div>
         </div>
-        {render_chart(spec, _series(rows, spec.key), color, spec.key)}
+        {render_chart(
+            spec,
+            _series(rows, spec.key),
+            color,
+            spec.key,
+            thresholds.get(spec.key) or {"value": spec.threshold, "display": f"{spec.threshold:g}"},
+        )}
       </section>"""
         for spec, color in (
             (RATIOS_BY_KEY["gsr"], "#fbbf24"),
@@ -583,7 +633,7 @@ def render(
 
     <section class="panel strip-panel">
       <div class="panel-head"><h3>最近状态<span class="panel-sub">每日象限</span></h3></div>
-      {render_quadrant_strip(rows)}
+      {render_quadrant_strip(rows, thresholds)}
     </section>
 
     <section class="panel actions">
@@ -744,6 +794,7 @@ a:hover{color:#c7dcf8}
 .ratio-desc{font-size:11.5px; color:var(--dim)}
 .ratio-state{font-size:12px; margin-top:6px; color:var(--muted)}
 .ratio-state.high{color:#fbbf24}
+.ratio-source{font-size:10.5px; color:var(--dim); margin-top:2px}
 .ratio-context{font-size:11.5px; color:var(--muted); margin-top:6px}
 .ratio-context b{color:var(--text)}
 .ptrack{

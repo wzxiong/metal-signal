@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import statistics
 import unittest
 
-from scripts.config import PERCENTILE_MIN_SAMPLES, QUADRANTS
+from scripts.config import PERCENTILE_MIN_SAMPLES, QUADRANTS, RATIOS_BY_KEY
 from scripts.signals import (
     build_signals,
+    resolve_thresholds,
     compute_ratios,
     percentile_rank,
     quadrant_code,
@@ -100,6 +102,73 @@ class PercentileTest(unittest.TestCase):
         rows = [{"gsr": 100.0}, {"gsr": 110.0}]
         self.assertAlmostEqual(trend_pct(rows, "gsr", 1), 10.0)
         self.assertIsNone(trend_pct(rows, "gsr", 5))
+
+
+class ThresholdTest(unittest.TestCase):
+    """阈值必须随历史自校准：固定 0.002 在 2024-2026 从未被触及，会让象限退化成两种。"""
+
+    def _rows(self, gsr: list[float], cgr: list[float]) -> list[dict]:
+        return [
+            {"date": f"2026-01-{i % 28 + 1:02d}", "gsr": g, "copper_gold_ratio": c}
+            for i, (g, c) in enumerate(zip(gsr, cgr))
+        ]
+
+    def test_falls_back_to_defaults_without_history(self) -> None:
+        resolved = resolve_thresholds(self._rows([70.0, 80.0], [0.001, 0.002]))
+        self.assertEqual(resolved["gsr"]["source"], "default")
+        self.assertEqual(resolved["gsr"]["value"], RATIOS_BY_KEY["gsr"].threshold)
+        self.assertEqual(
+            resolved["copper_gold_ratio"]["value"],
+            RATIOS_BY_KEY["copper_gold_ratio"].threshold,
+        )
+
+    def test_uses_median_when_history_is_enough(self) -> None:
+        n = PERCENTILE_MIN_SAMPLES
+        gsr = [60.0 + i for i in range(n)]          # 60..119, 中位 ≈ 89.5
+        cgr = [0.0010 + i * 0.000001 for i in range(n)]
+        resolved = resolve_thresholds(self._rows(gsr, cgr))
+
+        self.assertEqual(resolved["gsr"]["source"], "median")
+        self.assertAlmostEqual(resolved["gsr"]["value"], 89.5, places=2)
+        self.assertAlmostEqual(
+            resolved["copper_gold_ratio"]["value"], statistics.median(cgr), places=6
+        )
+
+    def test_absolute_mode_is_still_available(self) -> None:
+        n = PERCENTILE_MIN_SAMPLES
+        rows = self._rows([60.0 + i for i in range(n)], [0.001] * n)
+        resolved = resolve_thresholds(rows, mode="absolute")
+        self.assertEqual(resolved["gsr"]["source"], "default")
+        self.assertEqual(resolved["gsr"]["value"], 75.0)
+
+    def test_all_four_quadrants_reachable_with_dynamic_thresholds(self) -> None:
+        """固定阈值下 CGR 最高 0.0017 < 0.002，A/C 永远到不了；动态阈值必须能覆盖四种状态。"""
+        n = PERCENTILE_MIN_SAMPLES
+        rows = self._rows(
+            [60.0 + (i % 40) for i in range(n)],
+            [0.0010 + (i % 20) * 0.00005 for i in range(n)],
+        )
+        resolved = resolve_thresholds(rows)
+        gsr_cut = resolved["gsr"]["value"]
+        cgr_cut = resolved["copper_gold_ratio"]["value"]
+        codes = {
+            quadrant_code(g, c, gsr_cut, cgr_cut)
+            for g, c in [(50.0, 0.0009), (50.0, 0.0020), (99.0, 0.0009), (99.0, 0.0020)]
+        }
+        self.assertEqual(codes, set("ABCD"))
+
+    def test_sentence_shows_resolved_threshold(self) -> None:
+        n = PERCENTILE_MIN_SAMPLES
+        rows = self._rows([60.0 + i for i in range(n)], [0.0012] * n)
+        signals = build_signals(
+            {"gold": 4000.0, "silver": 50.0, "copper": 4.0, "aluminum": 1.0},
+            {"gsr": 99.0, "copper_gold_ratio": 0.0012, "aluminum_copper_ratio": 0.25},
+            rows,
+        )
+        line = next(d for d in signals["details"] if "金银比" in d)
+        self.assertIn("中位", line)
+        self.assertNotIn("阈值 75（框架默认", line)
+        self.assertIn("中位", signals["method"])
 
 
 class SignalCopyTest(unittest.TestCase):

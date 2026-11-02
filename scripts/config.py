@@ -194,6 +194,15 @@ RATIOS: tuple[RatioSpec, ...] = (
 RATIOS_BY_KEY = {r.key: r for r in RATIOS}
 
 # 四象限判定的两个轴（用比率阈值定义，避免文字与逻辑不一致）
+# 阈值模式：
+#   "percentile" —— 取各比率近 THRESHOLD_WINDOW 个交易日的中位数作为分界（默认）
+#   "absolute"   —— 固定使用 RatiosSpec.threshold（框架原文的 75 / 0.002）
+# 历史样本不足 PERCENTILE_MIN_SAMPLES 时自动回落到 absolute，
+# 因为 2024-2026 两年里铜金比最高只到 0.0017，固定 0.002 会让 A/C 象限永远不可达。
+THRESHOLD_MODE = "percentile"
+THRESHOLD_WINDOW = 250
+
+# 框架默认阈值（absolute 模式 / 无历史时的兜底）
 GSR_THRESHOLD = RATIOS_BY_KEY["gsr"].threshold
 CGR_THRESHOLD = RATIOS_BY_KEY["copper_gold_ratio"].threshold
 

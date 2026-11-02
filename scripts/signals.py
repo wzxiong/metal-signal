@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from statistics import median
+
 from scripts.config import (
     CGR_THRESHOLD,
     GSR_THRESHOLD,
@@ -16,6 +18,8 @@ from scripts.config import (
     QUADRANTS,
     RATIOS,
     RATIOS_BY_KEY,
+    THRESHOLD_MODE,
+    THRESHOLD_WINDOW,
 )
 
 
@@ -53,6 +57,42 @@ def compute_ratios(prices: dict[str, float | None]) -> dict[str, float | None]:
 
 def _round(value: float | None, digits: int) -> float | None:
     return None if value is None else round(value, digits)
+
+
+# ---------------------------------------------------------------- 阈值
+
+def resolve_thresholds(
+    rows: list[dict[str, Any]],
+    mode: str = THRESHOLD_MODE,
+    window: int = THRESHOLD_WINDOW,
+) -> dict[str, dict[str, Any]]:
+    """决定每个比率的分界线。
+
+    默认用近 window 个交易日的中位数：比率是随货币环境漂移的，
+    写死的绝对阈值（如铜金比 0.002）迟早会落到历史区间之外，
+    让某个象限永远不可达。历史不足时回落到框架默认值。
+    """
+    resolved: dict[str, dict[str, Any]] = {}
+
+    for spec in RATIOS:
+        values = [
+            float(r[spec.key])
+            for r in rows
+            if isinstance(r.get(spec.key), (int, float))
+        ][-window:]
+
+        use_dynamic = mode == "percentile" and len(values) >= PERCENTILE_MIN_SAMPLES
+        value = median(values) if use_dynamic else spec.threshold
+
+        resolved[spec.key] = {
+            "value": round(value, spec.decimals + 4),
+            "display": f"{value:.{spec.decimals}f}",
+            "source": "median" if use_dynamic else "default",
+            "samples": len(values),
+            "default": spec.threshold,
+        }
+
+    return resolved
 
 
 # ---------------------------------------------------------------- 四象限
@@ -128,22 +168,31 @@ def trend_pct(rows: list[dict[str, Any]], key: str, back: int) -> float | None:
 
 # ---------------------------------------------------------------- 文案
 
+def _threshold_note(threshold: dict[str, Any]) -> str:
+    if threshold.get("source") == "median":
+        return f"近 {threshold.get('samples') or THRESHOLD_WINDOW} 个交易日中位"
+    return "框架默认阈值"
+
+
 def _ratio_sentence(
     spec_key: str,
     value: float | None,
     context: dict[str, Any] | None,
     missing_hint: str,
+    threshold: dict[str, Any],
 ) -> str:
     spec = RATIOS_BY_KEY[spec_key]
     if value is None:
         return f"⚠️ {missing_hint}"
 
-    above = value >= spec.threshold
+    cut = float(threshold["value"])
+    above = value >= cut
     verdict = spec.high_means if above else spec.low_means
     relation = "高于" if above else "低于"
+    display = threshold.get("display") or f"{cut:g}"
     text = (
-        f"{spec.label} {value:.{spec.decimals}f} "
-        f"{relation}阈值 {spec.threshold:g}（{verdict}）"
+        f"{spec.label} {value:.{spec.decimals}f} {relation}阈值 {display}"
+        f"（{_threshold_note(threshold)}，{verdict}）"
     )
     if context and context.get("percentile") is not None:
         text += f"，处于近 {context['window']} 个交易日 {context['percentile']:.0f}% 分位"
@@ -162,7 +211,13 @@ def build_signals(
     cgr = ratios.get("copper_gold_ratio")
     acr = ratios.get("aluminum_copper_ratio")
 
-    code = quadrant_code(gsr, cgr)
+    thresholds = resolve_thresholds(rows)
+    code = quadrant_code(
+        gsr,
+        cgr,
+        thresholds["gsr"]["value"],
+        thresholds["copper_gold_ratio"]["value"],
+    )
     quadrant = QUADRANTS.get(code) if code else None
 
     context = {
@@ -172,7 +227,10 @@ def build_signals(
 
     details: list[str] = []
     details.append(
-        _ratio_sentence("gsr", gsr, context.get("gsr"), "白银或黄金数据缺失，无法计算金银比")
+        _ratio_sentence(
+            "gsr", gsr, context.get("gsr"),
+            "白银或黄金数据缺失，无法计算金银比", thresholds["gsr"],
+        )
     )
     details.append(
         _ratio_sentence(
@@ -180,6 +238,7 @@ def build_signals(
             cgr,
             context.get("copper_gold_ratio"),
             "铜或黄金数据缺失，无法计算铜金比",
+            thresholds["copper_gold_ratio"],
         )
     )
     details.append(
@@ -188,6 +247,7 @@ def build_signals(
             acr,
             context.get("aluminum_copper_ratio"),
             "铝或铜数据缺失，无法计算铝铜比",
+            thresholds["aluminum_copper_ratio"],
         )
     )
 
@@ -210,9 +270,15 @@ def build_signals(
         "risk_level": quadrant.risk_level if quadrant else "未知",
         "risk_score": quadrant.risk_score if quadrant else 0,
         "method": (
-            f"金银比阈值 {GSR_THRESHOLD:g}（金强 / 银强）× "
-            f"铜金比阈值 {CGR_THRESHOLD:g}（铜强 / 铜弱）"
+            f"金银比 {thresholds['gsr']['display']}（金强 / 银强）× "
+            f"铜金比 {thresholds['copper_gold_ratio']['display']}（铜强 / 铜弱）"
+            + (
+                f"，取近 {THRESHOLD_WINDOW} 个交易日中位数"
+                if thresholds["gsr"]["source"] == "median"
+                else f"，框架默认阈值（历史不足 {PERCENTILE_MIN_SAMPLES} 个交易日）"
+            )
         ),
+        "thresholds": thresholds,
         "details": details,
         "actions": list(quadrant.actions) if quadrant else [],
         "context": {k: v for k, v in context.items() if v},
@@ -221,6 +287,7 @@ def build_signals(
 
 
 __all__ = [
+    "resolve_thresholds",
     "safe_div",
     "compute_ratios",
     "quadrant_code",

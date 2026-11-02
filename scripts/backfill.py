@@ -24,7 +24,7 @@ from scripts.config import (
     RATIOS,
 )
 from scripts.market import fetch_daily
-from scripts.signals import compute_ratios, quadrant_code
+from scripts.signals import compute_ratios, quadrant_code, resolve_thresholds
 
 DailyFetcher = Callable[[str, int], list[tuple[date, float]]]
 
@@ -80,14 +80,24 @@ def build_rows(series: dict[str, dict[date, float]]) -> list[dict[str, Any]]:
         row: dict[str, Any] = {
             "date": day.isoformat(),
             "timestamp": f"{day.isoformat()}T00:00:00+00:00",
-            "quadrant": quadrant_code(ratios.get("gsr"), ratios.get("copper_gold_ratio"))
-            or "",
+            "quadrant": "",
         }
         for asset in ASSETS:
             row[asset.key] = prices.get(asset.key)
         for spec in RATIOS:
             row[spec.key] = ratios.get(spec.key)
         rows.append(row)
+
+    # 用整段历史统一解析阈值，再逐日标注象限，保证色带前后可比
+    thresholds = resolve_thresholds(rows)
+    gsr_cut = thresholds["gsr"]["value"]
+    cgr_cut = thresholds["copper_gold_ratio"]["value"]
+    for row in rows:
+        row["quadrant"] = (
+            quadrant_code(row.get("gsr"), row.get("copper_gold_ratio"), gsr_cut, cgr_cut)
+            or ""
+        )
+
     return rows
 
 

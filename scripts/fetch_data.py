@@ -34,7 +34,7 @@ from scripts.config import (
     UTC,
 )
 from scripts.market import Quote, fetch_quote, transport_name
-from scripts.signals import build_signals, compute_ratios, quadrant_code
+from scripts.signals import build_signals, compute_ratios
 
 SCHEMA_VERSION = 2
 
@@ -204,7 +204,7 @@ def run(
     row = {
         "date": as_of_str,
         "timestamp": now.astimezone(UTC).isoformat(timespec="seconds"),
-        "quadrant": quadrant_code(ratios.get("gsr"), ratios.get("copper_gold_ratio")) or "",
+        "quadrant": "",  # 先落位，算完信号再回填
     }
     for asset in ASSETS:
         row[asset.key] = prices.get(asset.key)
@@ -214,13 +214,17 @@ def run(
     if core_ok:
         rows = hist.upsert(rows, row)
         rows = hist.trim(rows, today=today)
-        if write:
-            hist.save(rows, history_path)
     else:
         print("  ✗ 核心品种全部抓取失败，本次不写入历史")
 
-    # 信号（用更新后的历史算分位）
+    # 信号（用更新后的历史算分位与阈值）
     signals = build_signals(prices, ratios, rows)
+
+    if core_ok:
+        row["quadrant"] = signals.get("quadrant") or ""
+        rows = hist.upsert(rows, row)
+        if write:
+            hist.save(rows, history_path)
 
     # 涨跌：只对比上一个交易日，且基准过旧时直接隐藏
     changes: dict[str, Any] = {}

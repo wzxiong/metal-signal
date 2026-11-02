@@ -160,14 +160,32 @@ def _chart_result(payload: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
-def _meta_date(meta: dict[str, Any], ts: int) -> date:
-    """把交易所时间戳换成交易所所在时区的自然日。"""
+def _exchange_tz(meta: dict[str, Any]) -> timezone:
     offset = meta.get("gmtoffset")
     if isinstance(offset, (int, float)):
-        tz = timezone(timedelta(seconds=int(offset)))
-    else:
-        tz = timezone.utc
-    return datetime.fromtimestamp(int(ts), tz=tz).date()
+        return timezone(timedelta(seconds=int(offset)))
+    return timezone.utc
+
+
+def _meta_date(meta: dict[str, Any], ts: int) -> date:
+    """行情时间戳 -> 交易所所在时区的自然日（用于即时报价）。"""
+    return datetime.fromtimestamp(int(ts), tz=_exchange_tz(meta)).date()
+
+
+# 期货日线的 timestamp 是"交易日开盘"时刻（美东 18:00 前一自然日），
+# 直接取日期会把每个交易日标成前一天，周一还会标成周日。
+SESSION_START_HOUR = 16
+
+
+def _trading_date(meta: dict[str, Any], ts: int) -> date:
+    """日线时间戳 -> 它真正所属的交易日。"""
+    local = datetime.fromtimestamp(int(ts), tz=_exchange_tz(meta))
+    day = local.date()
+    if local.hour >= SESSION_START_HOUR:
+        day += timedelta(days=1)
+    while day.weekday() >= 5:  # 周六 / 周日 -> 顺延到周一
+        day += timedelta(days=1)
+    return day
 
 
 def parse_quote(payload: dict[str, Any], symbol: str) -> Quote:
@@ -227,7 +245,7 @@ def parse_daily(payload: dict[str, Any]) -> list[tuple[date, float]]:
             continue
         if not isinstance(close, (int, float)) or close <= 0:
             continue
-        rows[_meta_date(meta, int(ts))] = float(close)
+        rows[_trading_date(meta, int(ts))] = float(close)
 
     return sorted(rows.items())
 

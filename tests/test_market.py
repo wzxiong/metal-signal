@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 from datetime import date, datetime, timezone
 
-from scripts.market import YahooError, parse_daily, parse_quote
+from scripts.market import YahooError, _trading_date, parse_daily, parse_quote
 
 
 def payload(meta: dict, timestamps: list[int], closes: list[float | None]) -> dict:
@@ -73,6 +73,37 @@ class QuoteTest(unittest.TestCase):
             parse_quote(data, "X")
 
 
+class TradingDateTest(unittest.TestCase):
+    """期货日线时间戳是"交易日开盘"，不能直接当日期用。"""
+
+    def test_session_start_maps_to_next_day(self) -> None:
+        # 周四 18:00 ET 开盘 -> 归属周五
+        self.assertEqual(
+            _trading_date({"gmtoffset": -14400}, ts(2026, 10, 29, 22, 0)),
+            date(2026, 10, 30),
+        )
+
+    def test_sunday_session_maps_to_monday(self) -> None:
+        # 周日 18:00 ET 开盘（周一盘） -> 归属周一，而不是周日
+        self.assertEqual(
+            _trading_date({"gmtoffset": -18000}, ts(2026, 11, 1, 23, 0)),
+            date(2026, 11, 2),
+        )
+
+    def test_saturday_rolls_to_monday(self) -> None:
+        self.assertEqual(
+            _trading_date({"gmtoffset": 0}, ts(2026, 10, 30, 18, 0)),  # 周六 03:00? -> 顺延
+            date(2026, 11, 2),
+        )
+
+    def test_cash_session_keeps_same_day(self) -> None:
+        # 指数 09:30 ET 开盘 -> 当天
+        self.assertEqual(
+            _trading_date({"gmtoffset": -14400}, ts(2026, 10, 30, 13, 30)),
+            date(2026, 10, 30),
+        )
+
+
 class DailyTest(unittest.TestCase):
     def test_parses_dates_in_exchange_timezone(self) -> None:
         # 13:30 UTC，纽约时区 -5h -> 当天 08:30，日期不变
@@ -86,13 +117,14 @@ class DailyTest(unittest.TestCase):
         self.assertEqual([v for _, v in rows], [1.0, 2.0])
 
     def test_drops_null_closes_and_dedupes(self) -> None:
+        # 2026-01-05 是周一，01-06 是周二
         data = payload(
             {"gmtoffset": 0},
-            [ts(2026, 1, 2), ts(2026, 1, 3), ts(2026, 1, 3, 12)],
+            [ts(2026, 1, 5), ts(2026, 1, 6), ts(2026, 1, 6, 12)],
             [None, 10.0, 11.0],
         )
         rows = parse_daily(data)
-        self.assertEqual(rows, [(date(2026, 1, 3), 11.0)])
+        self.assertEqual(rows, [(date(2026, 1, 6), 11.0)])
 
     def test_sorted_ascending(self) -> None:
         data = payload(

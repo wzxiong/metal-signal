@@ -102,12 +102,23 @@ def build_rows(series: dict[str, dict[date, float]]) -> list[dict[str, Any]]:
 
 
 def merge(
-    existing: list[dict[str, Any]], backfilled: list[dict[str, Any]]
+    existing: list[dict[str, Any]],
+    backfilled: list[dict[str, Any]],
+    prefer_backfilled: bool = False,
 ) -> list[dict[str, Any]]:
-    """已有真实快照优先，回填只补缺口。"""
-    by_day = {r["date"]: r for r in backfilled}
-    for row in existing:
-        by_day[row["date"]] = row
+    """默认已有真实快照优先，回填只补缺口。
+
+    prefer_backfilled=True（--force）时用回填结果覆盖同一天，
+    用于修正历史字段（例如交易日期口径变了）。
+    """
+    if prefer_backfilled:
+        by_day = {r["date"]: r for r in existing}
+        for row in backfilled:
+            by_day[row["date"]] = row
+    else:
+        by_day = {r["date"]: r for r in backfilled}
+        for row in existing:
+            by_day[row["date"]] = row
     return [by_day[day] for day in sorted(by_day)]
 
 
@@ -134,7 +145,7 @@ def run(
         return existing
 
     backfilled = hist.trim(build_rows(series), today=date.today())
-    merged = merge(existing, backfilled)
+    merged = merge(existing, backfilled, prefer_backfilled=force)
 
     print(
         f"回填完成：{len(backfilled)} 个交易日，合并后 {len(merged)} 个交易日"

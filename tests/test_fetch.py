@@ -147,6 +147,12 @@ class StalenessTest(Harness):
         # 用上一有效值兜底展示
         self.assertAlmostEqual(record["gold"], 3900.0)
 
+    def test_observation_date_falls_back_to_history(self) -> None:
+        """完全抓不到行情时，观察日取历史最后一天，而不是今天。"""
+        self.seed([BASELINE])
+        record, _ = self.go(quotes({}))
+        self.assertEqual(record["as_of"], "2026-10-31")
+
     def test_out_of_range_aluminum_is_degraded(self) -> None:
         self.seed([BASELINE])
         record, code = self.go(quotes({**GOOD, "ALI=F": 100.0}))  # 100 美元/吨显然不对

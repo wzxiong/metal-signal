@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
 """Yahoo Finance 行情客户端。
 
-只依赖 requests，去掉了 yfinance（版本频繁破坏、要装 pandas）。
+不用 yfinance（版本频繁破坏、要拖 pandas），但保留了它最关键的一招：
+用 curl_cffi 做浏览器 TLS 指纹伪装。Yahoo 会对裸 requests 的云端 IP 直接返回
+HTTP 429，伪装后基本不再触发；装不上 curl_cffi 时自动退回 requests。
+
 特性：
-  * 多主机 + 指数退避重试
-  * 统一的响应解析与错误类型
-  * 同时支持"取最新价"与"取日线序列"
+  * 浏览器指纹（可选）+ 多主机 + 尊重 Retry-After 的抖动退避
+  * 429 冷却：一旦被限流，后续请求先等冷却时间，避免连环被拒
+  * 统一的响应解析与错误类型，同时支持"最新价"与"日线序列"
 """
 
 from __future__ import annotations
 
+import random
 import time
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
@@ -19,8 +23,19 @@ import requests
 
 from scripts.config import USER_AGENT, YAHOO_HOSTS
 
-TIMEOUT = 15
+try:  # 浏览器指纹伪装，显著降低被 429 的概率
+    from curl_cffi import requests as _browser_requests
+
+    HAS_BROWSER_TLS = True
+except Exception:  # noqa: BLE001 - 缺依赖时优雅降级
+    _browser_requests = None
+    HAS_BROWSER_TLS = False
+
+TIMEOUT = 20
 RETRIES = 3
+BACKOFF_BASE = 4.0
+BACKOFF_MAX = 25.0
+COOLDOWN_AFTER_429 = 6.0
 
 
 class YahooError(RuntimeError):
@@ -38,42 +53,72 @@ class Quote:
     currency: str = "USD"
 
 
-def _session() -> requests.Session:
-    s = requests.Session()
-    s.headers.update(
-        {
-            "User-Agent": USER_AGENT,
-            "Accept": "application/json,text/plain,*/*",
-            "Accept-Language": "en-US,en;q=0.9",
-        }
-    )
-    return s
+_SESSION: Any = None
+_COOLDOWN_UNTIL = 0.0
 
 
-_SESSION: requests.Session | None = None
+def transport_name() -> str:
+    return "curl_cffi(chrome)" if HAS_BROWSER_TLS else "requests"
 
 
-def session() -> requests.Session:
+def session() -> Any:
+    """优先用 curl_cffi 伪装 Chrome，回落普通 requests。"""
     global _SESSION
-    if _SESSION is None:
-        _SESSION = _session()
+    if _SESSION is not None:
+        return _SESSION
+
+    headers = {
+        "User-Agent": USER_AGENT,
+        "Accept": "application/json,text/plain,*/*",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+    if HAS_BROWSER_TLS:
+        _SESSION = _browser_requests.Session(impersonate="chrome")
+        _SESSION.headers.update(headers)
+    else:
+        _SESSION = requests.Session()
+        _SESSION.headers.update(headers)
     return _SESSION
 
 
+def _sleep_before_request() -> None:
+    """429 冷却期内先等一会儿，避免连续撞墙。"""
+    wait = _COOLDOWN_UNTIL - time.monotonic()
+    if wait > 0:
+        time.sleep(min(wait, 15))
+
+
+def _note_rate_limited() -> None:
+    global _COOLDOWN_UNTIL
+    _COOLDOWN_UNTIL = time.monotonic() + COOLDOWN_AFTER_429
+
+
+def _retry_after(resp: Any) -> float | None:
+    raw = (resp.headers or {}).get("Retry-After")
+    if not raw:
+        return None
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
+
+
 def _get(path: str, params: dict[str, Any]) -> dict[str, Any]:
-    """带重试地请求 chart 接口，返回解析后的 JSON。"""
+    """带退避地请求 chart 接口，返回解析后的 JSON。"""
     last_error: Exception | None = None
 
     for attempt in range(RETRIES):
+        _sleep_before_request()
         for host in YAHOO_HOSTS:
             url = f"{host}{path}"
             try:
                 resp = session().get(url, params=params, timeout=TIMEOUT)
-            except requests.RequestException as exc:  # 网络层错误
+            except Exception as exc:  # noqa: BLE001 - 传输层错误（两种会话都可能）
                 last_error = exc
                 continue
 
-            if resp.status_code == 200:
+            status = resp.status_code
+            if status == 200:
                 try:
                     payload = resp.json()
                 except ValueError as exc:
@@ -84,22 +129,19 @@ def _get(path: str, params: dict[str, Any]) -> dict[str, Any]:
                 last_error = YahooError("响应缺少 chart 字段")
                 continue
 
-            if resp.status_code == 429:
-                # 触发限流，退避后重试
+            if status == 429:
                 last_error = YahooError("HTTP 429 限流")
-                retry_after = resp.headers.get("Retry-After")
-                try:
-                    wait = float(retry_after) if retry_after else 2.0
-                except ValueError:
-                    wait = 2.0
-                time.sleep(min(wait, 10))
-                continue
+                _note_rate_limited()
+                wait = _retry_after(resp)
+                if wait:
+                    time.sleep(min(wait, 15))
+                break  # 换主机没意义，直接进入下一轮退避
 
-            last_error = YahooError(f"HTTP {resp.status_code}")
+            last_error = YahooError(f"HTTP {status}")
 
-        # 一轮所有主机都失败，退避
         if attempt < RETRIES - 1:
-            time.sleep(1.5 * (attempt + 1))
+            backoff = min(BACKOFF_BASE * (2**attempt), BACKOFF_MAX)
+            time.sleep(backoff + random.uniform(0, 1.5))
 
     raise YahooError(f"请求失败: {last_error}")
 

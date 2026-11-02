@@ -13,3 +13,6 @@ data/*.tmp
 
 # 本地预览截图（不提交）
 .preview/
+
+# 本地 gh 登录凭据（含 token，绝不提交）
+.gh-config/

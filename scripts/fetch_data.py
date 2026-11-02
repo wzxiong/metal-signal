@@ -33,7 +33,7 @@ from scripts.config import (
     RATIOS,
     UTC,
 )
-from scripts.market import Quote, fetch_quote
+from scripts.market import Quote, fetch_quote, transport_name
 from scripts.signals import build_signals, compute_ratios, quadrant_code
 
 SCHEMA_VERSION = 2
@@ -151,14 +151,20 @@ def run(
     latest_path = Path(latest_path)
     history_path = Path(history_path)
 
-    print(f"[{now.astimezone(BEIJING):%Y-%m-%d %H:%M}] 开始抓取行情…")
+    print(f"[{now.astimezone(BEIJING):%Y-%m-%d %H:%M}] 开始抓取行情… (传输: {transport_name()})")
     fetched = collect(fetcher)
 
     rows = hist.load(history_path)
     core_ok = any(fetched.prices.get(k) for k in CORE_KEYS)
 
-    # 观察日：优先用交易所的交易日，避免周末/跨时区把日期算错
-    as_of = max(fetched.market_dates) if fetched.market_dates else today
+    # 观察日：优先用交易所的交易日，避免周末/跨时区把日期算错；
+    # 完全没抓到行情时退回历史最后一天，绝不把"今天"冒充成观察日
+    if fetched.market_dates:
+        as_of = max(fetched.market_dates)
+    elif rows:
+        as_of = date.fromisoformat(rows[-1]["date"])
+    else:
+        as_of = today
     as_of_str = as_of.isoformat()
 
     baseline = hist.previous_before(rows, as_of_str)

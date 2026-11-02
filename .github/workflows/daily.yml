@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
     inputs:
       backfill:
-        description: '强制回填最近两年历史（首次运行可勾选）'
+        description: '强制回填最近两年历史'
         type: boolean
         default: false
 
@@ -30,7 +30,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -49,7 +49,15 @@ jobs:
       - name: Run tests
         run: python -m unittest discover -s tests -t . -v
 
+      # 先抓当日行情（关键路径，趁着请求配额还没被消耗）
+      - name: Fetch latest quotes
+        id: fetch
+        continue-on-error: true
+        run: python -m scripts.fetch_data
+
+      # 再补历史日线；历史充足时这一步直接跳过、不发请求
       - name: Backfill history
+        continue-on-error: true
         run: |
           if [ "${{ inputs.backfill }}" = "true" ]; then
             python -m scripts.backfill --force
@@ -57,11 +65,19 @@ jobs:
             python -m scripts.backfill
           fi
 
-      - name: Fetch latest quotes
-        run: python -m scripts.fetch_data
-
+      # 即使行情降级也照常构建，让页面显示的"数据已滞后"第一时间可见
       - name: Build static site
         run: python -m scripts.build_site
+
+      - name: Flag degraded data
+        if: steps.fetch.outcome == 'failure'
+        run: |
+          echo "::warning::行情抓取失败，本次为降级发布（页面会显示数据滞后提示）"
+          {
+            echo "### ⚠️ 本次抓取失败"
+            echo ""
+            echo "已使用历史缓存降级发布，详见上方日志。常见原因：Yahoo 对云端 IP 限流（HTTP 429）。"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Commit data back
         run: |
@@ -74,7 +90,6 @@ jobs:
             exit 0
           fi
           git commit -m "chore(data): 更新 $(date -u '+%Y-%m-%d') 行情快照"
-          # 若期间有人手动提交，rebase 后重试
           for attempt in 1 2 3; do
             if git pull --rebase --autostash origin "${GITHUB_REF_NAME}" && git push; then
               exit 0

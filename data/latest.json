@@ -1,8 +1,8 @@
 {
   "schema": 2,
-  "timestamp": "2026-11-04T07:56:18+00:00",
-  "timestamp_beijing": "2026-11-04 15:56",
-  "as_of": "2026-11-04",
+  "timestamp": "2026-11-05T08:25:04+00:00",
+  "timestamp_beijing": "2026-11-05 16:25",
+  "as_of": "2026-11-05",
   "stale": false,
   "stale_reason": null,
   "degraded": {},
@@ -14,17 +14,17 @@
     "美元指数 DX-Y.NYB"
   ],
   "prices": {
-    "gold": 4036.7,
-    "silver": 51.79,
-    "copper": 6.411,
-    "aluminum": 1.44129,
-    "dxy": 101.385
+    "gold": 4137.6,
+    "silver": 52.665,
+    "copper": 6.367,
+    "aluminum": 1.447073,
+    "dxy": 101.404
   },
   "ratios": {
-    "gsr": 77.94,
-    "silver_gold_ratio": 0.01283,
-    "copper_gold_ratio": 0.00159,
-    "aluminum_copper_ratio": 0.2248
+    "gsr": 78.56,
+    "silver_gold_ratio": 0.01273,
+    "copper_gold_ratio": 0.00154,
+    "aluminum_copper_ratio": 0.2273
   },
   "signals": {
     "quadrant": "C",
@@ -32,7 +32,7 @@
     "description": "金铜同强，通胀与不确定性并存，需要均衡应对。",
     "risk_level": "中高",
     "risk_score": 70,
-    "method": "金银比 66.00（金强 / 银强）× 铜金比 0.0013（铜强 / 铜弱），取近 250 个交易日中位数",
+    "method": "金银比 66.00（金强 / 银强）× 铜金比 0.0014（铜强 / 铜弱），取近 250 个交易日中位数",
     "thresholds": {
       "gsr": {
         "value": 65.995,
@@ -42,24 +42,24 @@
         "default": 75.0
       },
       "copper_gold_ratio": {
-        "value": 0.001335,
-        "display": "0.0013",
+        "value": 0.00135,
+        "display": "0.0014",
         "source": "median",
         "samples": 250,
         "default": 0.002
       },
       "aluminum_copper_ratio": {
-        "value": 0.2422,
-        "display": "0.2422",
+        "value": 0.2421,
+        "display": "0.2421",
         "source": "median",
         "samples": 250,
         "default": 0.6
       }
     },
     "details": [
-      "金银比 77.94 高于阈值 66.00（近 250 个交易日中位，金强银弱，避险情绪偏浓），处于近 250 个交易日 93% 分位",
-      "铜金比 0.0016 高于阈值 0.0013（近 250 个交易日中位，铜强金弱，增长预期偏强），处于近 250 个交易日 95% 分位",
-      "铝铜比 0.2248 低于阈值 0.2422（近 250 个交易日中位，需求端定价为主），处于近 250 个交易日 8% 分位"
+      "金银比 78.56 高于阈值 66.00（近 250 个交易日中位，金强银弱，避险情绪偏浓），处于近 250 个交易日 94% 分位",
+      "铜金比 0.0015 高于阈值 0.0014（近 250 个交易日中位，铜强金弱，增长预期偏强），处于近 250 个交易日 80% 分位",
+      "铝铜比 0.2273 低于阈值 0.2421（近 250 个交易日中位，需求端定价为主），处于近 250 个交易日 10% 分位"
     ],
     "actions": [
       "策略风格：均衡配置，不单一押注",
@@ -68,19 +68,19 @@
     ],
     "context": {
       "gsr": {
-        "percentile": 93.2,
+        "percentile": 93.6,
         "window": 250,
         "min": 44.16,
         "max": 83.51
       },
       "copper_gold_ratio": {
-        "percentile": 95.2,
+        "percentile": 80.4,
         "window": 250,
         "min": 0.0011,
         "max": 0.0017
       },
       "aluminum_copper_ratio": {
-        "percentile": 8.0,
+        "percentile": 9.6,
         "window": 250,
         "min": 0.2117,
         "max": 0.3018
@@ -88,69 +88,69 @@
     },
     "trend": {
       "gsr": {
-        "d5": 2.84,
-        "d20": 12.74
+        "d5": 1.71,
+        "d20": 11.62
       },
       "copper_gold_ratio": {
-        "d5": -3.05,
-        "d20": 0.0
+        "d5": -5.52,
+        "d20": -1.91
       },
       "aluminum_copper_ratio": {
-        "d5": 0.4,
-        "d20": 1.72
+        "d5": -1.04,
+        "d20": 3.6
       }
     }
   },
   "changes": {
     "gold": {
-      "value": 119.2,
-      "pct": 3.04
+      "value": 100.9,
+      "pct": 2.5
     },
     "silver": {
-      "value": 2.745,
-      "pct": 5.6
+      "value": 0.875,
+      "pct": 1.69
     },
     "copper": {
-      "value": 0.0305,
-      "pct": 0.48
+      "value": -0.044,
+      "pct": -0.69
     },
     "aluminum": {
-      "value": 0.01009,
-      "pct": 0.71
+      "value": 0.005783,
+      "pct": 0.4
     },
     "dxy": {
-      "value": -0.311,
-      "pct": -0.31
+      "value": 0.019,
+      "pct": 0.02
     },
     "gsr": {
-      "value": -1.94,
-      "pct": -2.43
+      "value": 0.62,
+      "pct": 0.8
     },
     "copper_gold_ratio": {
-      "value": -4e-05,
-      "pct": -2.45
+      "value": -5e-05,
+      "pct": -3.14
     },
     "aluminum_copper_ratio": {
-      "value": 0.0005,
-      "pct": 0.22
+      "value": 0.0025,
+      "pct": 1.11
     }
   },
   "baseline": {
-    "date": "2026-11-03",
+    "date": "2026-11-04",
     "age_days": 1,
     "usable": true
   },
   "history": {
-    "days": 504,
+    "days": 505,
     "from": "2024-11-04",
-    "to": "2026-11-04"
+    "to": "2026-11-05"
   },
-  "gold": 4036.7,
-  "silver": 51.79,
-  "copper": 6.411,
-  "aluminum": 1.44129,
-  "dxy": 101.385,
-  "gsr": 77.94,
-  "copper_gold_ratio": 0.00159,
-  "aluminum_copper_ratio": 0.2248
+  "gold": 4137.6,
+  "silver": 52.665,
+  "copper": 6.367,
+  "aluminum": 1.447073,
+  "dxy": 101.404,
+  "gsr": 78.56,
+  "copper_gold_ratio": 0.00154,
+  "aluminum_copper_ratio": 0.2273
 }

@@ -1,8 +1,8 @@
 {
   "schema": 2,
-  "timestamp": "2026-11-12T08:47:37+00:00",
-  "timestamp_beijing": "2026-11-12 16:47",
-  "as_of": "2026-11-12",
+  "timestamp": "2026-11-13T08:41:48+00:00",
+  "timestamp_beijing": "2026-11-13 16:41",
+  "as_of": "2026-11-13",
   "stale": false,
   "stale_reason": null,
   "degraded": {},
@@ -14,17 +14,17 @@
     "美元指数 DX-Y.NYB"
   ],
   "prices": {
-    "gold": 3953.2,
-    "silver": 51.32,
-    "copper": 6.24,
-    "aluminum": 1.448434,
-    "dxy": 102.897
+    "gold": 3897.2,
+    "silver": 49.805,
+    "copper": 6.12,
+    "aluminum": 1.40727,
+    "dxy": 103.123
   },
   "ratios": {
-    "gsr": 77.03,
-    "silver_gold_ratio": 0.01298,
-    "copper_gold_ratio": 0.00158,
-    "aluminum_copper_ratio": 0.2321
+    "gsr": 78.25,
+    "silver_gold_ratio": 0.01278,
+    "copper_gold_ratio": 0.00157,
+    "aluminum_copper_ratio": 0.2299
   },
   "signals": {
     "quadrant": "C",
@@ -49,17 +49,17 @@
         "default": 0.002
       },
       "aluminum_copper_ratio": {
-        "value": 0.2411,
-        "display": "0.2411",
+        "value": 0.2407,
+        "display": "0.2407",
         "source": "median",
         "samples": 250,
         "default": 0.6
       }
     },
     "details": [
-      "金银比 77.03 高于阈值 66.00（近 250 个交易日中位，金强银弱，避险情绪偏浓），处于近 250 个交易日 93% 分位",
-      "铜金比 0.0016 高于阈值 0.0014（近 250 个交易日中位，铜强金弱，增长预期偏强），处于近 250 个交易日 93% 分位",
-      "铝铜比 0.2321 低于阈值 0.2411（近 250 个交易日中位，需求端定价为主），处于近 250 个交易日 22% 分位"
+      "金银比 78.25 高于阈值 66.00（近 250 个交易日中位，金强银弱，避险情绪偏浓），处于近 250 个交易日 95% 分位",
+      "铜金比 0.0016 高于阈值 0.0014（近 250 个交易日中位，铜强金弱，增长预期偏强），处于近 250 个交易日 91% 分位",
+      "铝铜比 0.2299 低于阈值 0.2407（近 250 个交易日中位，需求端定价为主），处于近 250 个交易日 14% 分位"
     ],
     "actions": [
       "策略风格：均衡配置，不单一押注",
@@ -68,19 +68,19 @@
     ],
     "context": {
       "gsr": {
-        "percentile": 92.8,
+        "percentile": 94.8,
         "window": 250,
         "min": 44.16,
         "max": 81.8
       },
       "copper_gold_ratio": {
-        "percentile": 93.2,
+        "percentile": 90.8,
         "window": 250,
         "min": 0.0011,
         "max": 0.0017
       },
       "aluminum_copper_ratio": {
-        "percentile": 22.0,
+        "percentile": 14.0,
         "window": 250,
         "min": 0.2117,
         "max": 0.3018
@@ -88,69 +88,69 @@
     },
     "trend": {
       "gsr": {
-        "d5": -1.95,
-        "d20": 4.99
+        "d5": -0.25,
+        "d20": 6.67
       },
       "copper_gold_ratio": {
-        "d5": 2.6,
-        "d20": 1.28
+        "d5": 2.61,
+        "d20": 0.64
       },
       "aluminum_copper_ratio": {
-        "d5": 2.11,
-        "d20": 7.6
+        "d5": -0.95,
+        "d20": 6.34
       }
     }
   },
   "changes": {
     "gold": {
-      "value": -112.9,
-      "pct": -2.78
+      "value": -56.0,
+      "pct": -1.42
     },
     "silver": {
-      "value": -1.675,
-      "pct": -3.16
+      "value": -1.515,
+      "pct": -2.95
     },
     "copper": {
-      "value": -0.0805,
-      "pct": -1.27
+      "value": -0.12,
+      "pct": -1.92
     },
     "aluminum": {
-      "value": 0.024384,
-      "pct": 1.71
+      "value": -0.04116,
+      "pct": -2.84
     },
     "dxy": {
-      "value": 0.57,
-      "pct": 0.56
+      "value": 0.226,
+      "pct": 0.22
     },
     "gsr": {
-      "value": 0.3,
-      "pct": 0.39
+      "value": 1.22,
+      "pct": 1.58
     },
     "copper_gold_ratio": {
-      "value": 3e-05,
-      "pct": 1.94
+      "value": -1e-05,
+      "pct": -0.63
     },
     "aluminum_copper_ratio": {
-      "value": 0.0068,
-      "pct": 3.02
+      "value": -0.0022,
+      "pct": -0.95
     }
   },
   "baseline": {
-    "date": "2026-11-11",
+    "date": "2026-11-12",
     "age_days": 1,
     "usable": true
   },
   "history": {
-    "days": 510,
+    "days": 511,
     "from": "2024-11-04",
-    "to": "2026-11-12"
+    "to": "2026-11-13"
   },
-  "gold": 3953.2,
-  "silver": 51.32,
-  "copper": 6.24,
-  "aluminum": 1.448434,
-  "dxy": 102.897,
-  "gsr": 77.03,
-  "copper_gold_ratio": 0.00158,
-  "aluminum_copper_ratio": 0.2321
+  "gold": 3897.2,
+  "silver": 49.805,
+  "copper": 6.12,
+  "aluminum": 1.40727,
+  "dxy": 103.123,
+  "gsr": 78.25,
+  "copper_gold_ratio": 0.00157,
+  "aluminum_copper_ratio": 0.2299
 }

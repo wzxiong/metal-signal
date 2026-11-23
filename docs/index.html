@@ -241,12 +241,12 @@ a:hover{color:#c7dcf8}
       <p class="tagline">Allocation Lab 宏观交易框架 · 每日市场状态跟踪</p>
       <div class="meta-row">
         <span class="pill">观察日 <b>2026-11-20</b></span>
-        
+        <span class="pill">抓取 <b>2026-11-23 16:10</b></span>
         <span class="pill">样本 <b>516</b> 个交易日</span>
       </div>
     </header>
 
-    <div class="banner banner-info" role="status"><span class="banner-icon">ℹ️</span><div>还没有抓取到最新快照，以下内容由最近一次历史记录推算。</div></div>
+    <div class="banner banner-warn" role="alert"><span class="banner-icon">⚠️</span><div><strong>数据降级：</strong>核心品种全部抓取失败，展示的是历史缓存值</div></div>
 
     <section class="grid prices" aria-label="主要品种价格">
       
@@ -255,7 +255,7 @@ a:hover{color:#c7dcf8}
           <span class="dot" style="--dot:#f5c542"></span>
           <span class="card-label">黄金</span>
           <span class="unit">USD/oz</span>
-          
+          <span class="badge" title="无行情返回，沿用 今日早前记录">沿用</span>
         </header>
         <div class="price-value">3,515.40</div>
         <div class="change muted">— 无涨跌数据</div>
@@ -265,7 +265,7 @@ a:hover{color:#c7dcf8}
           <span class="dot" style="--dot:#cbd5e1"></span>
           <span class="card-label">白银</span>
           <span class="unit">USD/oz</span>
-          
+          <span class="badge" title="无行情返回，沿用 今日早前记录">沿用</span>
         </header>
         <div class="price-value">41.03</div>
         <div class="change muted">— 无涨跌数据</div>
@@ -275,7 +275,7 @@ a:hover{color:#c7dcf8}
           <span class="dot" style="--dot:#d08a4e"></span>
           <span class="card-label">铜</span>
           <span class="unit">USD/lb</span>
-          
+          <span class="badge" title="无行情返回，沿用 今日早前记录">沿用</span>
         </header>
         <div class="price-value">5.477</div>
         <div class="change muted">— 无涨跌数据</div>
@@ -285,7 +285,7 @@ a:hover{color:#c7dcf8}
           <span class="dot" style="--dot:#9aa4b2"></span>
           <span class="card-label">铝</span>
           <span class="unit">USD/lb</span>
-          
+          <span class="badge" title="无行情返回，沿用 今日早前记录">沿用</span>
         </header>
         <div class="price-value">1.2973</div>
         <div class="change muted">— 无涨跌数据</div>
@@ -295,7 +295,7 @@ a:hover{color:#c7dcf8}
           <span class="dot" style="--dot:#5ea3ff"></span>
           <span class="card-label">美元指数</span>
           
-          
+          <span class="badge" title="无行情返回，沿用 今日早前记录">沿用</span>
         </header>
         <div class="price-value">103.81</div>
         <div class="change muted">— 无涨跌数据</div>
@@ -311,7 +311,7 @@ a:hover{color:#c7dcf8}
         <div class="ratio-state high">高于阈值 66.00</div>
         <div class="ratio-source">近 250 个交易日中位</div>
         <div class="ratio-context">近 250 个交易日 <b>100%</b> 分位</div><div class="ptrack" role="img" aria-label="当前值位于历史 100% 分位，阈值位于 50% 分位"><div class="pfill" style="width:98.5%"></div><span class="tick" style="left:50.0%" title="阈值 66.00 位于 50% 分位"></span><span class="pmark" style="left:98.5%"></span></div>
-        <div class="change muted">— 无涨跌数据</div>
+        <div class="change up">▲ +3.02%<span class="change-base">较 11-19</span></div>
       </article>
       <article class="card ratio">
         <div class="ratio-label">铜金比</div>
@@ -320,7 +320,7 @@ a:hover{color:#c7dcf8}
         <div class="ratio-state high">高于阈值 0.0014</div>
         <div class="ratio-source">近 250 个交易日中位</div>
         <div class="ratio-context">近 250 个交易日 <b>86%</b> 分位</div><div class="ptrack" role="img" aria-label="当前值位于历史 86% 分位，阈值位于 50% 分位"><div class="pfill" style="width:86.4%"></div><span class="tick" style="left:50.0%" title="阈值 0.0014 位于 50% 分位"></span><span class="pmark" style="left:86.4%"></span></div>
-        <div class="change muted">— 无涨跌数据</div>
+        <div class="change up">▲ +1.96%<span class="change-base">较 11-19</span></div>
       </article>
       <article class="card ratio">
         <div class="ratio-label">铝铜比</div>
@@ -329,7 +329,7 @@ a:hover{color:#c7dcf8}
         <div class="ratio-state low">低于阈值 0.2394</div>
         <div class="ratio-source">近 250 个交易日中位</div>
         <div class="ratio-context">近 250 个交易日 <b>43%</b> 分位</div><div class="ptrack" role="img" aria-label="当前值位于历史 43% 分位，阈值位于 50% 分位"><div class="pfill" style="width:42.8%"></div><span class="tick" style="left:50.0%" title="阈值 0.2394 位于 50% 分位"></span><span class="pmark" style="left:42.8%"></span></div>
-        <div class="change muted">— 无涨跌数据</div>
+        <div class="change up">▲ +3.45%<span class="change-base">较 11-19</span></div>
       </article>
     </section>
 
@@ -512,7 +512,7 @@ a:hover{color:#c7dcf8}
     </section>
 
     <footer class="site-foot">
-      <p>数据来源 Yahoo Finance（—）· 生成于 2026-11-23 16:09</p>
+      <p>数据来源 Yahoo Finance（—）· 生成于 2026-11-23 16:10</p>
       <p><a href="https://wzxiong.github.io/metal-signal/" target="_blank" rel="noopener">在线地址</a> · <a href="https://mp.weixin.qq.com/s/HigsrOVaJMtpY2M0_oeWJA" target="_blank" rel="noopener">参考文章：Allocation Lab 宏观交易框架</a></p>
     </footer>
   </div>

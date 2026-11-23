@@ -250,21 +250,38 @@ def parse_daily(payload: dict[str, Any]) -> list[tuple[date, float]]:
     return sorted(rows.items())
 
 
-def _is_session_open(meta: dict[str, Any]) -> bool:
-    """判断当前这根日线是不是"还没收盘"。"""
-    state = str(meta.get("marketState") or "").upper()
-    if state:
-        return state == "REGULAR"
-    # 拿不到状态时用时间兜底：交易所当地时间还没过 17:00 且这根 K 就是今天
-    tz = _exchange_tz(meta)
-    return datetime.now(tz).hour < 17
+# 日线收盘时刻（交易所当地时间）：期货 17:00 ET 收盘，指数 16:00 ET。
+# 取 16:30 做统一分界——对指数已经不早于收盘，对期货最多早判断半小时，
+# 而我们的抓取时点（北京时间下午 ≈ 美东凌晨）离这个边界很远。
+SESSION_CLOSE_MINUTES = 16 * 60 + 30
 
 
 def _last_closed_bar(
-    rows: list[tuple[date, float]], meta: dict[str, Any]
+    rows: list[tuple[date, float]],
+    meta: dict[str, Any],
+    now: datetime | None = None,
 ) -> tuple[date, float]:
-    """盘中时丢掉未完成的那根 K，只留已收盘的。"""
-    if _is_session_open(meta) and len(rows) > 1:
+    """只保留"已收盘"的那根日线。
+
+    Yahoo 的 marketState 对期货不可靠（盘中仍返回 CLOSED），所以以
+    "这根 K 的交易日是否早于交易所当地的今天，或今天但已过收盘时刻"为准。
+    """
+    if len(rows) < 2:
+        return rows[-1]
+
+    state = str(meta.get("marketState") or "").upper()
+    if state == "REGULAR":
+        return rows[-2]
+
+    tz = _exchange_tz(meta)
+    now_local = (now or datetime.now(timezone.utc)).astimezone(tz)
+    last_day = rows[-1][0]
+
+    if last_day > now_local.date():
+        return rows[-2]
+    if last_day == now_local.date() and (
+        now_local.hour * 60 + now_local.minute < SESSION_CLOSE_MINUTES
+    ):
         return rows[-2]
     return rows[-1]
 

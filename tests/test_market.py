@@ -7,7 +7,6 @@ from datetime import date, datetime, timezone
 
 from scripts.market import (
     YahooError,
-    _is_session_open,
     _last_closed_bar,
     _parse_fred_csv,
     _trading_date,
@@ -87,27 +86,35 @@ class CloseOnlyTest(unittest.TestCase):
     bars = [
         (date(2026, 11, 19), 3800.0),
         (date(2026, 11, 20), 3515.4),
-        (date(2026, 11, 23), 3490.0),  # 盘中
+        (date(2026, 11, 23), 3490.0),  # 周一，可能是盘中的那根
     ]
+    meta = {"gmtoffset": -18000}  # EST
 
-    def test_open_session_drops_last_bar(self) -> None:
-        self.assertEqual(_last_closed_bar(self.bars, {"marketState": "REGULAR"}),
-                         (date(2026, 11, 20), 3515.4))
+    def at(self, hour_utc: int, minute: int = 0):
+        return datetime(2026, 11, 23, hour_utc, minute, tzinfo=timezone.utc)
 
-    def test_closed_session_keeps_last_bar(self) -> None:
-        self.assertEqual(_last_closed_bar(self.bars, {"marketState": "CLOSED"}),
-                         (date(2026, 11, 23), 3490.0))
+    def test_intraday_drops_last_bar(self) -> None:
+        # 美东 03:00，当日 K 还没走完
+        picked = _last_closed_bar(self.bars, self.meta, now=self.at(8))
+        self.assertEqual(picked, (date(2026, 11, 20), 3515.4))
 
-    def test_pre_post_keep_last_bar(self) -> None:
-        for state in ("PRE", "POST", "PREPRE"):
-            with self.subTest(state=state):
-                self.assertFalse(_is_session_open({"marketState": state}))
-                self.assertEqual(_last_closed_bar(self.bars, {"marketState": state})[0],
-                                 date(2026, 11, 23))
+    def test_after_close_keeps_last_bar(self) -> None:
+        # 美东 18:00，已经收盘
+        picked = _last_closed_bar(self.bars, self.meta, now=self.at(23))
+        self.assertEqual(picked, (date(2026, 11, 23), 3490.0))
+
+    def test_market_state_regular_always_drops(self) -> None:
+        picked = _last_closed_bar(self.bars, {**self.meta, "marketState": "REGULAR"}, now=self.at(23))
+        self.assertEqual(picked[0], date(2026, 11, 20))
+
+    def test_past_bar_is_always_complete(self) -> None:
+        bars = self.bars[:2]
+        picked = _last_closed_bar(bars, self.meta, now=self.at(8))
+        self.assertEqual(picked, (date(2026, 11, 20), 3515.4))
 
     def test_single_bar_is_never_dropped(self) -> None:
-        self.assertEqual(_last_closed_bar(self.bars[:1], {"marketState": "REGULAR"}),
-                         (date(2026, 11, 19), 3800.0))
+        picked = _last_closed_bar(self.bars[:1], self.meta, now=self.at(8))
+        self.assertEqual(picked, (date(2026, 11, 19), 3800.0))
 
 
 class FredCsvTest(unittest.TestCase):

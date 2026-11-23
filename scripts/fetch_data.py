@@ -203,6 +203,14 @@ def run(
         as_of = today
     as_of_str = as_of.isoformat()
 
+    # 自愈：历史里若残留"未来日期"的行（例如早期版本的盘中快照被写成了当天），
+    # 以收盘价口径为准，直接丢弃，避免图表出现观察日之后的点
+    stale_rows = [r for r in rows if r["date"] > as_of_str]
+    if stale_rows:
+        print(f"  ⌫ 清理 {len(stale_rows)} 条晚于观察日（{as_of_str}）的记录："
+              + "、".join(r["date"] for r in stale_rows))
+        rows = [r for r in rows if r["date"] <= as_of_str]
+
     baseline = hist.previous_before(rows, as_of_str)
     baseline_age = None
     if baseline:

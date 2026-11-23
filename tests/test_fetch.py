@@ -148,6 +148,21 @@ class StalenessTest(Harness):
         # 用上一有效值兜底展示
         self.assertAlmostEqual(record["gold"], 3900.0)
 
+    def test_future_dated_rows_are_dropped(self) -> None:
+        """历史里残留的未来日期行（盘中价写成了当天）应被清理。"""
+        import json
+
+        from scripts import history as hist_mod
+
+        self.seed([
+            BASELINE,
+            {"date": "2026-11-04", "timestamp": "", "gold": 9999.0, "silver": 1.0,
+             "copper": 1.0, "aluminum": 1.0, "dxy": 100.0},
+        ])
+        self.go(quotes(GOOD))  # 观察日 = 11-02
+        dates = [r["date"] for r in hist_mod.load(self.history)]
+        self.assertNotIn("2026-11-04", dates)
+
     def test_observation_date_falls_back_to_history(self) -> None:
         """完全抓不到行情时，观察日取历史最后一天，而不是今天。"""
         self.seed([BASELINE])

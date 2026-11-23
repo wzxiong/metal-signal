@@ -184,10 +184,10 @@ date,timestamp,gold,silver,copper,aluminum,dxy,gsr,copper_gold_ratio,aluminum_co
 
 ## 自动更新
 
-`.github/workflows/daily.yml` 每天北京时间 09:30 运行：
+`.github/workflows/daily.yml` 每天北京时间 06:15（= 22:15 UTC，美盘收盘后）运行：
 
 1. 跑单元测试
-2. `backfill`（历史不足 120 天时自动补两年日线）
+2. `backfill`（历史不足 120 天时自动补两年日线；充足时零请求）
 3. 抓取最新行情 → 计算信号
 4. 生成静态页面
 5. **把 `data/` 和 `docs/` 提交回仓库**（否则历史永远长不起来）

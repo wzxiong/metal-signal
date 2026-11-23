@@ -13,7 +13,9 @@
 | --- | --- | --- |
 | **金银比 GSR** | 黄金 / 白银 | 风险偏好温度计。上升 = 避险，下降 = 进攻 |
 | **铜金比 CGR** | 铜 / 黄金 | 增长 vs 防守。上升 = 复苏/再通胀，下降 = 衰退担忧 |
-| **铝铜比 ACR** | 铝 / 铜 | 供给 / 能源约束的辅助观察 |
+| **铝铜比 ACR** | 铝 / 铜 | 供给 / 能源约束。铝明显跑赢铜 = 后半段（供给/成本驱动） |
+| **10 年期实际利率** | FRED `DFII10`（TIPS） | 黄金的第一性驱动。上行 = 逆风，下行 = 顺风 |
+| **VIX** | `^VIX` | 风险偏好是否熄火 |
 
 ## 四象限
 
@@ -42,13 +44,31 @@
 > 所有阈值与象限文案都定义在 `scripts/config.py`，抓取、回填、建站三处共享同一份，
 > 不存在"逻辑用 75、文案写 80"的情况。
 
+## 反转信号清单
+
+框架原文把"什么时候该警惕"浓缩成 6 条可检查的条件，命中 3 条以上默认进入高风险区。
+站点把这 6 条做成实时打勾的清单：
+
+| 信号 | 判定方式 |
+| --- | --- |
+| 价格加速 | 黄金近 20 日涨幅 > 8%，且明显陡于前 20 日 |
+| 动能背离 | 创 60 日新高，但涨速在衰减 |
+| 相关资产不跟 | 黄金在涨、白银 20 日跑输 5% 以上（贵金属内部不确认） |
+| 宏观逆风 | 美元 20 日 > +2%、实际利率 20 日 > +15bp、或 VIX ≥ 25 |
+| 叙事变化 | 无法量化，保留为人工判断项（不计分） |
+| 末端补涨 | 铝铜比 20 日 > +3% 且处于 70% 分位以上（供给/成本驱动的后半段） |
+
+> 清单检测的是**上涨末端的反转**。当金价本身已在下行段（近 20 日 < −5%）时，
+> 命中数天然偏低，页面会明确提示"适用性下降"，不会给出一个绿色的"趋势健康"误导人。
+
 ---
 
 ## 数据流
 
 ```
-Yahoo Finance chart API
-        │  scripts/market.py（重试 / 多主机 / 单位换算 / 区间校验）
+Yahoo Finance chart API          FRED（DFII10 实际利率）
+        │                              │
+        │  scripts/market.py（浏览器指纹 / 重试 / 单位换算 / 区间校验）
         ▼
 scripts/backfill.py ──► data/history.csv ◄── scripts/fetch_data.py
                           （按交易日去重）         │
@@ -120,8 +140,8 @@ python -m unittest discover -s tests -t . -v
 `data/history.csv`（按 `date` 升序，一天一行）：
 
 ```
-date,timestamp,gold,silver,copper,aluminum,dxy,gsr,copper_gold_ratio,aluminum_copper_ratio,quadrant
-2026-11-02,2026-11-02T01:30:00+00:00,3912.9,50.37,6.53,1.44,101.73,77.68,0.00167,0.2202,B
+date,timestamp,gold,silver,copper,aluminum,dxy,gsr,copper_gold_ratio,aluminum_copper_ratio,real_yield,vix,reversal_score,quadrant
+2026-11-20,2026-11-22T08:42:41+00:00,3515.4,41.07,5.485,1.2653,103.84,85.6,0.00156,0.2307,2.88,15.3,1,C
 ```
 
 `data/latest.json` 关键字段：
@@ -132,7 +152,8 @@ date,timestamp,gold,silver,copper,aluminum,dxy,gsr,copper_gold_ratio,aluminum_co
 | `prices` / `ratios` | 本期价格与派生比率 |
 | `changes` | 相对**上一个交易日**的涨跌；基准过旧时为空 |
 | `baseline` | 对比基准日期、相隔天数、是否可用 |
-| `signals` | 象限、风险分、解读文案、历史分位、5/20 日变化 |
+| `macro` | 宏观锚（实际利率 / VIX）的取值与日期 |
+| `signals` | 象限、风险分、解读文案、历史分位、5/20 日变化、反转清单 |
 | `stale` / `degraded` | 是否降级，以及每个品种的具体原因 |
 
 ---

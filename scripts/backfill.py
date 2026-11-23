@@ -21,9 +21,10 @@ from scripts.config import (
     BACKFILL_MIN_DAYS,
     BACKFILL_YEARS,
     HISTORY_FILE,
+    MACRO_SERIES,
     RATIOS,
 )
-from scripts.market import fetch_daily
+from scripts.market import fetch_daily, fetch_fred_series
 from scripts.signals import compute_ratios, quadrant_code, resolve_thresholds
 
 DailyFetcher = Callable[[str, int], list[tuple[date, float]]]
@@ -63,6 +64,40 @@ def fetch_asset_series(
             print(f"  ✗ {asset.label} ({symbol}): 有效数据仅 {len(converted)} 条，换下一个候选")
 
     return out
+
+
+def fetch_macro_history(years: int) -> dict[str, dict[date, float]]:
+    """回填宏观锚的历史（实际利率 / VIX），失败不影响金属部分。"""
+    out: dict[str, dict[date, float]] = {}
+
+    for spec in MACRO_SERIES:
+        try:
+            if spec.source == "fred":
+                series = fetch_fred_series(spec.ident, years=years)
+            else:
+                series = fetch_daily(spec.ident, years=years)
+        except Exception as exc:  # noqa: BLE001
+            print(f"  ✗ {spec.label}: {exc}")
+            continue
+
+        values = {day: value for day, value in series if spec.sane_min <= value <= spec.sane_max}
+        if values:
+            out[spec.key] = values
+            print(f"  ✓ {spec.label}: {len(values)} 个交易日")
+
+    return out
+
+
+def apply_macro(
+    rows: list[dict[str, Any]], macro: dict[str, dict[date, float]]
+) -> list[dict[str, Any]]:
+    """把宏观序列按日期贴到历史行上（只填空值，不覆盖已有数据）。"""
+    for row in rows:
+        day = date.fromisoformat(row["date"])
+        for key, series in macro.items():
+            if row.get(key) is None and day in series:
+                row[key] = round(series[day], 4)
+    return rows
 
 
 def build_rows(series: dict[str, dict[date, float]]) -> list[dict[str, Any]]:
@@ -131,6 +166,7 @@ def merge(
 
 def run(
     fetcher: DailyFetcher | None = None,
+    macro_fetcher: Callable[[int], dict[str, dict[date, float]]] | None = None,
     years: int = BACKFILL_YEARS,
     force: bool = False,
     min_days: int = BACKFILL_MIN_DAYS,
@@ -138,6 +174,7 @@ def run(
     write: bool = True,
 ) -> list[dict[str, Any]]:
     fetcher = fetcher or fetch_daily
+    macro_fetcher = macro_fetcher or fetch_macro_history
     history_path = Path(history_path)
 
     existing = hist.load(history_path)
@@ -155,6 +192,9 @@ def run(
         return existing
 
     backfilled = hist.trim(build_rows(series), today=date.today())
+    macro = macro_fetcher(years)
+    if macro:
+        backfilled = apply_macro(backfilled, macro)
     merged = merge(existing, backfilled, prefer_backfilled=force)
 
     print(

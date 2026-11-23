@@ -69,6 +69,7 @@ class Harness(unittest.TestCase):
     def go(self, fetcher, **kwargs):
         return run(
             quote_fetcher=fetcher,
+            macro_fetcher=lambda: {},
             now=NOW,
             latest_path=self.latest,
             history_path=self.history,

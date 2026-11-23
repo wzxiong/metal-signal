@@ -13,13 +13,17 @@ from statistics import median
 
 from scripts.config import (
     CGR_THRESHOLD,
+    DXY_HEADWIND_PCT,
     GSR_THRESHOLD,
     PERCENTILE_MIN_SAMPLES,
     QUADRANTS,
     RATIOS,
     RATIOS_BY_KEY,
+    REAL_YIELD_HEADWIND_BP,
+    REVERSAL_ALERT_THRESHOLD,
     THRESHOLD_MODE,
     THRESHOLD_WINDOW,
+    VIX_HEADWIND_LEVEL,
 )
 
 
@@ -199,6 +203,252 @@ def _ratio_sentence(
     return text
 
 
+# ---------------------------------------------------------------- 宏观锚
+
+def _points(rows: list[dict[str, Any]], key: str) -> list[tuple[str, float]]:
+    """取出 (日期, 数值) 序列，跳过空值。"""
+    out = []
+    for row in rows:
+        value = row.get(key)
+        if isinstance(value, (int, float)):
+            out.append((row["date"], float(value)))
+    return out
+
+
+def change_over(rows: list[dict[str, Any]], key: str, back: int) -> float | None:
+    """最近 back 个样本的绝对变化。"""
+    points = _points(rows, key)
+    if len(points) < back + 1:
+        return None
+    return points[-1][1] - points[-1 - back][1]
+
+
+def pct_over(rows: list[dict[str, Any]], key: str, back: int) -> float | None:
+    """最近 back 个样本的百分比变化。"""
+    points = _points(rows, key)
+    if len(points) < back + 1:
+        return None
+    previous = points[-1 - back][1]
+    if previous == 0:
+        return None
+    return (points[-1][1] - previous) / previous * 100
+
+
+def _pearson(pairs: list[tuple[float, float]]) -> float | None:
+    if len(pairs) < 10:
+        return None
+    xs = [p[0] for p in pairs]
+    ys = [p[1] for p in pairs]
+    mx, my = sum(xs) / len(xs), sum(ys) / len(ys)
+    cov = sum((x - mx) * (y - my) for x, y in zip(xs, ys))
+    vx = sum((x - mx) ** 2 for x in xs)
+    vy = sum((y - my) ** 2 for y in ys)
+    if vx <= 0 or vy <= 0:
+        return None
+    return cov / ((vx * vy) ** 0.5)
+
+
+def real_yield_context(rows: list[dict[str, Any]], window: int = 250) -> dict[str, Any] | None:
+    """实际利率的位置、近期变化，以及它与黄金的滚动相关性。
+
+    原文的核心判断：黄金最怕的是真实利率上行。这里把"水平 + 变化 + 与金价
+    的实际相关性"一次给出，避免只盯着金价本身看。
+    """
+    points = _points(rows, "real_yield")
+    if len(points) < 21:
+        return None
+
+    latest = points[-1]
+    change_20 = latest[1] - points[-21][1]
+    bp = round(change_20 * 100, 1)
+
+    values = [v for _, v in points][-window:]
+    pct = None
+    if len(values) >= PERCENTILE_MIN_SAMPLES:
+        pct = round(sum(1 for v in values if v <= latest[1]) / len(values) * 100, 1)
+
+    # 与黄金的滚动相关性：用近 60 个交易日的日变化对齐
+    gold_points = _points(rows, "gold")
+    by_day = dict(gold_points)
+    pairs = []
+    for day, value in points[-61:]:
+        if day in by_day:
+            pairs.append((value, by_day[day]))
+    diffs = [
+        (pairs[i][0] - pairs[i - 1][0], pairs[i][1] - pairs[i - 1][1])
+        for i in range(1, len(pairs))
+    ]
+    corr = _pearson(diffs)
+
+    if bp >= REAL_YIELD_HEADWIND_BP:
+        state, tone = "逆风", "down"
+    elif bp <= -REAL_YIELD_HEADWIND_BP:
+        state, tone = "顺风", "up"
+    else:
+        state, tone = "中性", "flat"
+
+    return {
+        "value": round(latest[1], 2),
+        "date": latest[0],
+        "change_20d_bp": bp,
+        "percentile": pct,
+        "corr_gold_60d": None if corr is None else round(corr, 2),
+        "state": state,
+        "tone": tone,
+    }
+
+
+# ---------------------------------------------------------------- 反转清单
+
+def build_reversal_checklist(
+    rows: list[dict[str, Any]],
+    prices: dict[str, float | None],
+    ratios: dict[str, float | None],
+) -> dict[str, Any]:
+    """原文的"6 条反转信号清单"，命中 3 条以上默认进入高风险区。
+
+    第 5 条（叙事变化）无法从价格数据推出，保留为人工判断项、不计分。
+    """
+    items: list[dict[str, Any]] = []
+
+    def add(key: str, label: str, hit: bool | None, detail: str) -> None:
+        items.append({"key": key, "label": label, "hit": hit, "detail": detail})
+
+    # 1) 价格加速：最近 20 日涨幅明显陡于前 20 日
+    r20 = pct_over(rows, "gold", 20)
+    r20_prev = None
+    points = _points(rows, "gold")
+    if len(points) >= 41:
+        older = points[-41][1]
+        mid = points[-21][1]
+        if older:
+            r20_prev = (mid - older) / older * 100
+    if r20 is None or r20_prev is None:
+        add("acceleration", "价格加速", None, "历史不足，无法判断")
+    else:
+        hit = r20 > 8 and r20 > 2 * max(r20_prev, 0.1)
+        add(
+            "acceleration",
+            "价格加速",
+            hit,
+            f"黄金近 20 日 {r20:+.1f}%，前 20 日 {r20_prev:+.1f}%",
+        )
+
+    # 2) 动能背离：创 60 日新高，但涨速在衰减
+    gold_points = _points(rows, "gold")
+    if len(gold_points) < 61 or r20 is None or r20_prev is None:
+        add("divergence", "动能背离", None, "历史不足，无法判断")
+    else:
+        window = [v for _, v in gold_points][-60:]
+        is_high = gold_points[-1][1] >= max(window) - 1e-9
+        hit = is_high and r20 < r20_prev
+        detail = (
+            f"创 60 日新高但涨速由 {r20_prev:+.1f}% 降到 {r20:+.1f}%"
+            if hit
+            else ("未创新高" if not is_high else "新高且仍在加速")
+        )
+        add("divergence", "动能背离", hit, detail)
+
+    # 3) 相关资产不跟：贵金属内部白银跑输黄金
+    silver_r20 = pct_over(rows, "silver", 20)
+    if r20 is None or silver_r20 is None:
+        add("lagging", "相关资产不跟", None, "历史不足，无法判断")
+    else:
+        spread = silver_r20 - r20
+        # 只有"金在涨、银跟不上"才是顶部背离；同涨同跌时看 beta 没有意义
+        hit = r20 > 0 and spread < -5
+        add(
+            "lagging",
+            "相关资产不跟",
+            hit,
+            f"白银近 20 日 {silver_r20:+.1f}%，相对黄金 {spread:+.1f}%"
+            + ("（金强而银不跟，动能不纯）" if hit else ""),
+        )
+
+    # 4) 宏观逆风：美元走强 / 实际利率上行 / 恐慌指数抬升
+    dxy20 = pct_over(rows, "dxy", 20)
+    ry_context = real_yield_context(rows)
+    ry_bp = ry_context["change_20d_bp"] if ry_context else None
+    vix_points = _points(rows, "vix")
+    vix_now = vix_points[-1][1] if vix_points else None
+
+    triggers = []
+    if dxy20 is not None and dxy20 >= DXY_HEADWIND_PCT:
+        triggers.append(f"美元 20 日 {dxy20:+.1f}%")
+    if ry_bp is not None and ry_bp >= REAL_YIELD_HEADWIND_BP:
+        triggers.append(f"实际利率 20 日 {ry_bp:+.0f}bp")
+    if vix_now is not None and vix_now >= VIX_HEADWIND_LEVEL:
+        triggers.append(f"VIX {vix_now:.1f}")
+
+    if dxy20 is None and ry_bp is None and vix_now is None:
+        add("headwind", "宏观逆风", None, "缺少美元 / 实际利率 / VIX 数据")
+    else:
+        add(
+            "headwind",
+            "宏观逆风",
+            bool(triggers),
+            "、".join(triggers) if triggers else "美元、实际利率、波动率均未形成逆风",
+        )
+
+    # 5) 叙事变化：只能人工判断
+    add(
+        "narrative",
+        "叙事变化",
+        None,
+        "需人工判断：驱动是否从「需求趋势」转向「供给冲击 / 监管 / 复产」",
+    )
+
+    # 6) 末端补涨：铝开始明显跑赢铜（供给/成本驱动的后半段）
+    acr20 = pct_over(rows, "aluminum_copper_ratio", 20)
+    acr_now = ratios.get("aluminum_copper_ratio")
+    acr_pct = None
+    if acr_now is not None:
+        values = [v for _, v in _points(rows, "aluminum_copper_ratio")][-250:]
+        if len(values) >= PERCENTILE_MIN_SAMPLES:
+            acr_pct = sum(1 for v in values if v <= acr_now) / len(values) * 100
+
+    if acr20 is None or acr_pct is None:
+        add("late_stage", "末端补涨", None, "历史不足，无法判断铝铜比位置")
+    else:
+        hit = acr20 > 3 and acr_pct > 70
+        add(
+            "late_stage",
+            "末端补涨",
+            hit,
+            f"铝铜比近 20 日 {acr20:+.1f}%，处于 {acr_pct:.0f}% 分位",
+        )
+
+    scored = [i for i in items if i["hit"] is not None]
+    score = sum(1 for i in scored if i["hit"])
+
+    if score >= REVERSAL_ALERT_THRESHOLD:
+        level, tone = "高风险区", "down"
+    elif score == REVERSAL_ALERT_THRESHOLD - 1:
+        level, tone = "需警惕", "flat"
+    else:
+        level, tone = "趋势健康", "up"
+
+    # 清单针对的是"上涨末端的反转"。如果价格已经在下行段，命中数会天然偏低，
+    # 这时必须明确说明适用性，而不是显示一个绿色的"趋势健康"。
+    note = ""
+    if r20 is not None and r20 <= -5:
+        level, tone = "已在下行段", "down"
+        note = (
+            f"黄金近 20 日 {r20:+.1f}%，趋势已经转弱；"
+            "本清单检测的是上涨末端的反转信号，此时命中数偏低属于正常，请以象限与宏观锚为主。"
+        )
+
+    return {
+        "score": score,
+        "total": len(scored),
+        "alert": score >= REVERSAL_ALERT_THRESHOLD,
+        "level": level,
+        "tone": tone,
+        "note": note,
+        "items": items,
+    }
+
+
 # ---------------------------------------------------------------- 汇总
 
 def build_signals(
@@ -254,6 +504,9 @@ def build_signals(
     if quadrant is None:
         details.insert(0, "关键比率不完整，暂不判定象限（按上一条有效记录保持观察）")
 
+    real_yield = real_yield_context(rows)
+    reversal = build_reversal_checklist(rows, prices, ratios)
+
     trend = {}
     for spec in RATIOS:
         trend[spec.key] = {
@@ -279,6 +532,8 @@ def build_signals(
             )
         ),
         "thresholds": thresholds,
+        "real_yield": real_yield,
+        "reversal": reversal,
         "details": details,
         "actions": list(quadrant.actions) if quadrant else [],
         "context": {k: v for k, v in context.items() if v},

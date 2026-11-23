@@ -7,7 +7,9 @@ import unittest
 
 from scripts.config import PERCENTILE_MIN_SAMPLES, QUADRANTS, RATIOS_BY_KEY
 from scripts.signals import (
+    build_reversal_checklist,
     build_signals,
+    real_yield_context,
     resolve_thresholds,
     compute_ratios,
     percentile_rank,
@@ -169,6 +171,114 @@ class ThresholdTest(unittest.TestCase):
         self.assertIn("中位", line)
         self.assertNotIn("阈值 75（框架默认", line)
         self.assertIn("中位", signals["method"])
+
+
+def _series(days: int, start: float = 100.0, step: float = 0.0) -> list[dict]:
+    """构造一段连续的日序列。"""
+    import datetime as dt
+
+    base = dt.date(2026, 1, 1)
+    return [
+        {"date": (base + dt.timedelta(days=i)).isoformat(), "value": start + step * i}
+        for i in range(days)
+    ]
+
+
+class RealYieldTest(unittest.TestCase):
+    """原文：黄金最大的对手是实际利率。"""
+
+    def _rows(self, yld: list[float], gold: list[float] | None = None) -> list[dict]:
+        import datetime as dt
+
+        base = dt.date(2026, 1, 1)
+        rows = []
+        for i, y in enumerate(yld):
+            row = {"date": (base + dt.timedelta(days=i)).isoformat(), "real_yield": y}
+            if gold:
+                row["gold"] = gold[i]
+            rows.append(row)
+        return rows
+
+    def test_rising_yield_is_headwind(self) -> None:
+        rows = self._rows([2.0 + 0.01 * i for i in range(40)])
+        context = real_yield_context(rows)
+        self.assertEqual(context["state"], "逆风")
+        self.assertAlmostEqual(context["change_20d_bp"], 20.0, places=1)
+
+    def test_falling_yield_is_tailwind(self) -> None:
+        rows = self._rows([3.0 - 0.01 * i for i in range(40)])
+        context = real_yield_context(rows)
+        self.assertEqual(context["state"], "顺风")
+
+    def test_flat_yield_is_neutral(self) -> None:
+        rows = self._rows([2.0] * 40)
+        self.assertEqual(real_yield_context(rows)["state"], "中性")
+
+    def test_returns_none_without_history(self) -> None:
+        self.assertIsNone(real_yield_context(self._rows([2.0] * 5)))
+
+    def test_correlation_picks_up_inverse_move(self) -> None:
+        import math
+
+        yld = [2.0 + 0.01 * i + 0.02 * math.sin(i) for i in range(80)]
+        gold = [4000 - 3000 * (y - 2.0) for y in yld]  # 明确的负相关
+        context = real_yield_context(self._rows(yld, gold))
+        self.assertIsNotNone(context["corr_gold_60d"])
+        self.assertLess(context["corr_gold_60d"], -0.5)
+
+
+class ReversalChecklistTest(unittest.TestCase):
+    """原文的 6 条清单：命中 3 条以上进入高风险区。"""
+
+    def _rows(self, n: int = 120, gold_slope: float = 1.0, silver_slope: float = 1.0,
+              dxy_slope: float = 0.0, yield_slope: float = 0.0) -> list[dict]:
+        import datetime as dt
+
+        base = dt.date(2025, 1, 1)
+        rows = []
+        for i in range(n):
+            rows.append({
+                "date": (base + dt.timedelta(days=i)).isoformat(),
+                "gold": 3000 + gold_slope * i,
+                "silver": 40 + silver_slope * i,
+                "copper": 5.0,
+                "aluminum": 1.2,
+                "dxy": 100 + dxy_slope * i,
+                "gsr": (3000 + gold_slope * i) / (40 + silver_slope * i),
+                "copper_gold_ratio": 5.0 / (3000 + gold_slope * i),
+                "aluminum_copper_ratio": 1.2 / 5.0,
+                "real_yield": 2.0 + yield_slope * i,
+                "vix": 15.0,
+            })
+        return rows
+
+    def test_score_and_level(self) -> None:
+        ratios = {"aluminum_copper_ratio": 0.24}
+        result = build_reversal_checklist(self._rows(), {}, ratios)
+        self.assertEqual(result["total"], 5)  # 叙事变化不计分
+        self.assertLess(result["score"], 2)
+        self.assertFalse(result["alert"])
+        self.assertEqual(result["level"], "趋势健康")
+
+    def test_downtrend_marks_list_as_not_applicable(self) -> None:
+        rows = self._rows(gold_slope=-10.0)
+        result = build_reversal_checklist(rows, {}, {"aluminum_copper_ratio": 0.24})
+        self.assertEqual(result["level"], "已在下行段")
+        self.assertIn("趋势已经转弱", result["note"])
+
+    def test_headwind_triggers(self) -> None:
+        rows = self._rows(dxy_slope=0.2, yield_slope=0.02)  # 美元与利率同时上行
+        result = build_reversal_checklist(rows, {}, {"aluminum_copper_ratio": 0.24})
+        headwind = next(i for i in result["items"] if i["key"] == "headwind")
+        self.assertTrue(headwind["hit"])
+        self.assertIn("20 日", headwind["detail"])
+
+    def test_all_four_scored_items_present(self) -> None:
+        result = build_reversal_checklist(self._rows(), {}, {"aluminum_copper_ratio": 0.24})
+        keys = [i["key"] for i in result["items"]]
+        self.assertEqual(
+            keys, ["acceleration", "divergence", "lagging", "headwind", "narrative", "late_stage"]
+        )
 
 
 class SignalCopyTest(unittest.TestCase):

@@ -139,6 +139,67 @@ ASSETS: tuple[Asset, ...] = (
 
 ASSETS_BY_KEY = {a.key: a for a in ASSETS}
 
+
+# ---------------------------------------------------------------- 宏观锚
+
+@dataclass(frozen=True)
+class MacroSeries:
+    """与金属价格互补的宏观序列。
+
+    原文的核心论点：黄金的"对手"是实际利率，所以必须把 10 年期 TIPS
+    实际收益率作为第一性变量跟踪，而不是只看金价本身。
+    """
+
+    key: str
+    label: str
+    unit: str
+    source: str  # "fred" | "yahoo"
+    ident: str   # FRED series id 或 Yahoo symbol
+    color: str
+    decimals: int = 2
+    # 该序列"上行"对贵金属是逆风还是顺风
+    up_is_headwind: bool = True
+    sane_min: float = -20.0
+    sane_max: float = 100.0
+
+
+MACRO_SERIES: tuple[MacroSeries, ...] = (
+    MacroSeries(
+        key="real_yield",
+        label="10年期实际利率",
+        unit="%",
+        source="fred",
+        ident="DFII10",
+        color="#a78bfa",
+        decimals=2,
+        up_is_headwind=True,
+        sane_min=-5.0,
+        sane_max=15.0,
+    ),
+    MacroSeries(
+        key="vix",
+        label="VIX 恐慌指数",
+        unit="",
+        source="yahoo",
+        ident="^VIX",
+        color="#f472b6",
+        decimals=2,
+        up_is_headwind=True,
+        sane_min=5.0,
+        sane_max=120.0,
+    ),
+)
+
+MACRO_BY_KEY = {m.key: m for m in MACRO_SERIES}
+
+# 宏观逆风判定：20 个交易日内的变化阈值
+REAL_YIELD_HEADWIND_BP = 15.0   # 实际利率 20 日上行超过 15bp
+DXY_HEADWIND_PCT = 2.0          # 美元指数 20 日上行超过 2%
+VIX_HEADWIND_LEVEL = 25.0       # VIX 站上 25
+
+# 反转信号清单：命中多少条进入高风险区（原文：满足 3 条以上）
+REVERSAL_ALERT_THRESHOLD = 3
+
 # 核心品种：缺失即视为整体降级
 CORE_KEYS = ("gold", "silver", "copper")
 

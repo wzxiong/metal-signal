@@ -27,6 +27,9 @@ FIELDS = [
     "gsr",
     "copper_gold_ratio",
     "aluminum_copper_ratio",
+    "real_yield",
+    "vix",
+    "reversal_score",
     "quadrant",
 ]
 
@@ -39,6 +42,9 @@ NUMERIC_FIELDS = (
     "gsr",
     "copper_gold_ratio",
     "aluminum_copper_ratio",
+    "real_yield",
+    "vix",
+    "reversal_score",
 )
 
 

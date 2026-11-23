@@ -28,17 +28,51 @@ from scripts.config import (
     CORE_KEYS,
     HISTORY_FILE,
     LATEST_FILE,
+    MACRO_SERIES,
     MAX_BASELINE_AGE_DAYS,
     MAX_DAILY_CHANGE,
     RATIOS,
     UTC,
 )
-from scripts.market import Quote, fetch_quote, transport_name
+from scripts.market import Quote, fetch_fred_series, fetch_quote, transport_name
 from scripts.signals import build_signals, compute_ratios
 
 SCHEMA_VERSION = 2
 
 QuoteFetcher = Callable[[Sequence[str]], Quote | None]
+MacroFetcher = Callable[[], dict[str, tuple[float, str]]]
+
+
+def fetch_macro() -> dict[str, tuple[float, str]]:
+    """拉取宏观锚（实际利率 / VIX）。失败不影响主流程。"""
+    out: dict[str, tuple[float, str]] = {}
+
+    for spec in MACRO_SERIES:
+        try:
+            if spec.source == "fred":
+                series = fetch_fred_series(spec.ident, years=1)
+                if not series:
+                    raise RuntimeError("空序列")
+                day, value = series[-1]
+            else:
+                quote = fetch_quote([spec.ident])
+                if quote is None:
+                    raise RuntimeError("无报价")
+                day = quote.market_date or date.today()
+                value = quote.price
+        except Exception as exc:  # noqa: BLE001 - 宏观序列是加成，不该拖垮主流程
+            print(f"  ✗ {spec.label}: {exc}")
+            continue
+
+        if not (spec.sane_min <= value <= spec.sane_max):
+            print(f"  ✗ {spec.label}: {value} 超出合理区间，丢弃")
+            continue
+
+        out[spec.key] = (round(value, spec.decimals + 2), day.isoformat())
+        suffix = f" {spec.unit}" if spec.unit else ""
+        print(f"  ✓ {spec.label}: {value:.{spec.decimals}f}{suffix}  ({day})")
+
+    return out
 
 
 @dataclass
@@ -137,6 +171,7 @@ def apply_guards(
 
 def run(
     quote_fetcher: QuoteFetcher | None = None,
+    macro_fetcher: MacroFetcher | None = None,
     today: date | None = None,
     now: datetime | None = None,
     latest_path: Path | str = LATEST_FILE,
@@ -145,6 +180,7 @@ def run(
 ) -> tuple[dict[str, Any], int]:
     """执行抓取 + 计算 + 落盘，返回 (记录, 退出码)。"""
     fetcher = quote_fetcher or fetch_quote
+    macro_fetcher = macro_fetcher or fetch_macro
     now = now or datetime.now(timezone.utc)
     today = today or now.astimezone(BEIJING).date()
 
@@ -200,12 +236,17 @@ def run(
 
     ratios = compute_ratios(prices)
 
+    # 宏观锚：实际利率 / VIX（缺失时留空，不触发降级）
+    macro = macro_fetcher()
+
     # 写入历史（一天一行）
     row = {
         "date": as_of_str,
         "timestamp": now.astimezone(UTC).isoformat(timespec="seconds"),
         "quadrant": "",  # 先落位，算完信号再回填
     }
+    for spec in MACRO_SERIES:
+        row[spec.key] = macro.get(spec.key, (None, None))[0]
     for asset in ASSETS:
         row[asset.key] = prices.get(asset.key)
     for spec in RATIOS:
@@ -222,6 +263,7 @@ def run(
 
     if core_ok:
         row["quadrant"] = signals.get("quadrant") or ""
+        row["reversal_score"] = signals["reversal"]["score"]
         rows = hist.upsert(rows, row)
         if write:
             hist.save(rows, history_path)
@@ -272,6 +314,15 @@ def run(
         "signals": signals,
         "changes": changes,
         "baseline": baseline_info,
+        "macro": {
+            spec.key: {
+                "value": macro.get(spec.key, (None, None))[0],
+                "date": macro.get(spec.key, (None, None))[1],
+                "label": spec.label,
+                "unit": spec.unit,
+            }
+            for spec in MACRO_SERIES
+        },
         "history": {
             "days": len([r for r in rows if r.get("gsr") is not None]),
             "from": rows[0]["date"] if rows else None,

@@ -274,6 +274,59 @@ def fetch_daily(symbol: str, years: int = 2) -> list[tuple[date, float]]:
     return parse_daily(payload)
 
 
+def fetch_fred_series(series_id: str, years: int = 2) -> list[tuple[date, float]]:
+    """从 FRED 取日频宏观序列（免 key 的 CSV 接口）。
+
+    10 年期 TIPS 实际收益率是黄金最直接的定价锚，原文反复强调
+    "黄金最大的对手是真实利率"，所以这条数据和金价同等重要。
+    """
+    url = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}"
+    last_error: Exception | None = None
+
+    for attempt in range(RETRIES):
+        try:
+            resp = session().get(url, timeout=TIMEOUT)
+        except Exception as exc:  # noqa: BLE001
+            last_error = exc
+            time.sleep(2.0 * (attempt + 1))
+            continue
+
+        if resp.status_code == 200:
+            return _parse_fred_csv(resp.text, years)
+
+        last_error = YahooError(f"FRED HTTP {resp.status_code}")
+        time.sleep(2.0 * (attempt + 1))
+
+    raise YahooError(f"FRED 拉取失败: {last_error}")
+
+
+def _parse_fred_csv(text: str, years: int) -> list[tuple[date, float]]:
+    """解析 observation_date,value；"." 表示非交易日/缺值。"""
+    lines = text.splitlines()
+    if not lines:
+        return []
+
+    cutoff = date.today().replace(year=date.today().year - years)
+    rows: list[tuple[date, float]] = []
+    for line in lines[1:]:
+        parts = line.strip().split(",")
+        if len(parts) < 2:
+            continue
+        raw_day, raw_value = parts[0], parts[1]
+        if raw_value in {".", "", "NA"}:
+            continue
+        try:
+            day = date.fromisoformat(raw_day)
+            value = float(raw_value)
+        except ValueError:
+            continue
+        if day >= cutoff:
+            rows.append((day, value))
+
+    rows.sort()
+    return rows
+
+
 def fetch_many_daily(
     symbols: Iterable[str], years: int = 2
 ) -> dict[str, list[tuple[date, float]]]:

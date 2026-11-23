@@ -5,7 +5,13 @@ from __future__ import annotations
 import unittest
 from datetime import date, datetime, timezone
 
-from scripts.market import YahooError, _trading_date, parse_daily, parse_quote
+from scripts.market import (
+    YahooError,
+    _parse_fred_csv,
+    _trading_date,
+    parse_daily,
+    parse_quote,
+)
 
 
 def payload(meta: dict, timestamps: list[int], closes: list[float | None]) -> dict:
@@ -71,6 +77,24 @@ class QuoteTest(unittest.TestCase):
         )
         with self.assertRaises(YahooError):
             parse_quote(data, "X")
+
+
+class FredCsvTest(unittest.TestCase):
+    def test_parses_and_skips_missing(self) -> None:
+        sample = (
+            "observation_date,DFII10\n"
+            "2026-11-17,2.90\n"
+            "2026-11-18,.\n"
+            "2026-11-19,2.88\n"
+        )
+        self.assertEqual(
+            _parse_fred_csv(sample, years=2),
+            [(date(2026, 11, 17), 2.9), (date(2026, 11, 19), 2.88)],
+        )
+
+    def test_handles_garbage(self) -> None:
+        self.assertEqual(_parse_fred_csv("", years=2), [])
+        self.assertEqual(_parse_fred_csv("observation_date,DFII10\nbad,data\n", years=2), [])
 
 
 class TradingDateTest(unittest.TestCase):

@@ -88,7 +88,7 @@ class RunTest(unittest.TestCase):
 
     def test_backfills_when_history_is_short(self) -> None:
         hist.save([{"date": "2026-01-01", "gold": 3900.0}], self.path)
-        rows = run(fetcher=fake_fetcher, history_path=self.path, min_days=120)
+        rows = run(fetcher=fake_fetcher, macro_fetcher=lambda years: {}, history_path=self.path, min_days=120)
 
         self.assertGreaterEqual(len(rows), 120)
         self.assertEqual(rows[0]["date"], "2026-01-01")
@@ -113,7 +113,7 @@ class RunTest(unittest.TestCase):
             called.append(symbol)
             return []
 
-        result = run(fetcher=fetcher, history_path=self.path, min_days=120)
+        result = run(fetcher=fetcher, macro_fetcher=lambda years: {}, history_path=self.path, min_days=120)
         self.assertEqual(len(result), len(rows))
         self.assertEqual([r["date"] for r in result], [r["date"] for r in rows])
         self.assertEqual(called, [])
@@ -124,7 +124,7 @@ class RunTest(unittest.TestCase):
         def broken(symbol, years):
             raise RuntimeError("network down")
 
-        rows = run(fetcher=broken, history_path=self.path, min_days=120)
+        rows = run(fetcher=broken, macro_fetcher=lambda years: {}, history_path=self.path, min_days=120)
         self.assertEqual(len(rows), 1)
         self.assertEqual(hist.load(self.path)[0]["date"], "2026-01-01")
 

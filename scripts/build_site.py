@@ -21,6 +21,8 @@ from typing import Any, Iterable, Sequence
 from scripts import history as hist
 from scripts.config import (
     ASSETS,
+    REVERSAL_ALERT_THRESHOLD,
+    VIX_HEADWIND_LEVEL,
     BEIJING,
     CHART_DAYS,
     HISTORY_FILE,
@@ -256,6 +258,105 @@ def render_risk_meter(score: int, level: str) -> str:
         <div class="risk-track"><span class="risk-fill" style="width:{score}%;--risk:{color}"></span></div>
         <div class="risk-scale"><span>低</span><span>中</span><span>高</span></div>
       </div>"""
+
+
+def render_checklist(signals: dict[str, Any]) -> str:
+    """原文的 6 条反转信号清单。"""
+    reversal = signals.get("reversal") or {}
+    items = reversal.get("items") or []
+    if not items:
+        return ""
+
+    rows = []
+    for item in items:
+        hit = item.get("hit")
+        if hit is True:
+            cls, mark = "hit", "●"
+        elif hit is False:
+            cls, mark = "miss", "○"
+        else:
+            cls, mark = "unknown", "–"
+        rows.append(
+            f'<li class="ck-item {cls}">'
+            f'<span class="ck-mark">{mark}</span>'
+            f"<div><b>{escape(str(item['label']))}</b>"
+            f'<p>{escape(str(item["detail"]))}</p></div></li>'
+        )
+
+    score = reversal.get("score", 0)
+    total = reversal.get("total", 0)
+    level = reversal.get("level", "—")
+    tone = reversal.get("tone", "flat")
+    threshold = REVERSAL_ALERT_THRESHOLD
+
+    return f"""
+    <section class="panel checklist">
+      <div class="panel-head">
+        <h3>反转信号清单<span class="panel-sub">原文 6 条，满足 {threshold} 条以上默认进入高风险区</span></h3>
+        <div class="score-badge {tone}"><b>{score}</b> / {total} 命中 · {escape(str(level))}</div>
+      </div>
+      {f'<p class="ck-note">{escape(reversal["note"])}</p>' if reversal.get("note") else ""}
+      <ul class="ck-list">{"".join(rows)}</ul>
+    </section>"""
+
+
+def render_macro_panel(latest: dict[str, Any], signals: dict[str, Any]) -> str:
+    """宏观锚：实际利率 + 与金价的相关性 + VIX。"""
+    context = signals.get("real_yield")
+    macro = latest.get("macro") or {}
+    vix = (macro.get("vix") or {}).get("value")
+
+    if not context and vix is None:
+        return ""
+
+    cells = []
+    if context:
+        bp = context.get("change_20d_bp")
+        bp_text = "—" if bp is None else f"{bp:+.0f}bp"
+        cells.append(
+            f"""
+        <div class="macro-cell">
+          <div class="macro-k">10 年期实际利率</div>
+          <div class="macro-v">{context['value']:.2f}<span>%</span></div>
+          <div class="macro-d {context['tone']}">近 20 日 {bp_text} · {escape(str(context['state']))}</div>
+        </div>"""
+        )
+        corr = context.get("corr_gold_60d")
+        cells.append(
+            f"""
+        <div class="macro-cell">
+          <div class="macro-k">与黄金 60 日相关性</div>
+          <div class="macro-v">{("—" if corr is None else f"{corr:+.2f}")}</div>
+          <div class="macro-d muted">日变化口径，负相关符合"实际利率是黄金对手"</div>
+        </div>"""
+        )
+        pct = context.get("percentile")
+        cells.append(
+            f"""
+        <div class="macro-cell">
+          <div class="macro-k">实际利率分位</div>
+          <div class="macro-v">{("—" if pct is None else f"{pct:.0f}%")}</div>
+          <div class="macro-d muted">近 250 个交易日</div>
+        </div>"""
+        )
+    if vix is not None:
+        tone = "down" if vix >= VIX_HEADWIND_LEVEL else "muted"
+        cells.append(
+            f"""
+        <div class="macro-cell">
+          <div class="macro-k">VIX 恐慌指数</div>
+          <div class="macro-v">{vix:.2f}</div>
+          <div class="macro-d {tone}">{"已站上 " + str(VIX_HEADWIND_LEVEL) + "，风险偏好承压" if vix >= VIX_HEADWIND_LEVEL else "风险偏好未熄火"}</div>
+        </div>"""
+        )
+
+    return f"""
+    <section class="panel macro">
+      <div class="panel-head">
+        <h3>宏观锚<span class="panel-sub">黄金的第一性驱动：真实利率</span></h3>
+      </div>
+      <div class="macro-grid">{"".join(cells)}</div>
+    </section>"""
 
 
 # ---------------------------------------------------------------- 图表
@@ -569,6 +670,9 @@ def render(
     sources = " · ".join(str(s) for s in latest.get("sources") or []) or "—"
     generated = now.astimezone(BEIJING).strftime("%Y-%m-%d %H:%M")
 
+    checklist_html = render_checklist(signals)
+    macro_html = render_macro_panel(latest, signals)
+
     method = str(signals.get("method") or "")
     method_html = (
         f'<div class="method">判定方法：{escape(method)}</div>' if method else ""
@@ -624,6 +728,10 @@ def render(
       <ul class="signals">{details_html}</ul>
       {method_html}
     </section>
+
+    {checklist_html}
+
+    {macro_html}
 
     {trend_html}
 
@@ -889,6 +997,35 @@ a:hover{color:#c7dcf8}
 .strip-empty{font-size:13px; color:var(--dim)}
 
 /* ---------- notice / footer ---------- */
+.ck-note{margin:0 0 12px; font-size:12.5px; line-height:1.7; color:#fca5a5; background:rgba(248,113,113,.07); border:1px solid rgba(248,113,113,.18); border-radius:10px; padding:10px 14px}
+.ck-list{list-style:none; padding:0; margin:0}
+.ck-item{display:flex; gap:12px; align-items:flex-start; padding:11px 0; border-top:1px solid rgba(255,255,255,.05)}
+.ck-item:first-child{border-top:none}
+.ck-mark{flex:none; width:20px; height:20px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; margin-top:2px}
+.ck-item.hit .ck-mark{background:rgba(248,113,113,.18); color:#f87171; border:1px solid rgba(248,113,113,.45)}
+.ck-item.miss .ck-mark{background:rgba(255,255,255,.03); color:var(--dim); border:1px solid var(--border)}
+.ck-item.miss b{color:var(--muted); font-weight:500}
+.ck-item.unknown .ck-mark{background:rgba(255,255,255,.06); color:var(--dim); border:1px solid var(--border)}
+.ck-item b{font-size:13.5px; font-weight:600; color:var(--text)}
+.ck-item.hit b{color:#fca5a5}
+.ck-item p{margin:2px 0 0; font-size:12.5px; color:var(--muted); line-height:1.6}
+.score-badge{font-size:12.5px; padding:6px 12px; border-radius:999px; border:1px solid var(--border); color:var(--muted); white-space:nowrap}
+.score-badge b{font-size:15px}
+.score-badge.down{color:#fca5a5; border-color:rgba(248,113,113,.4); background:rgba(248,113,113,.08)}
+.score-badge.flat{color:#fbbf24; border-color:rgba(251,191,36,.35); background:rgba(251,191,36,.07)}
+.score-badge.up{color:#4ade80; border-color:rgba(74,222,128,.3); background:rgba(74,222,128,.06)}
+
+.macro-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px}
+.macro-cell{background:rgba(255,255,255,.02); border:1px solid var(--border); border-radius:12px; padding:14px 16px}
+.macro-k{font-size:12px; color:var(--muted)}
+.macro-v{font-size:24px; font-weight:700; margin:4px 0 2px; font-variant-numeric:tabular-nums}
+.macro-v span{font-size:13px; color:var(--dim); margin-left:2px}
+.macro-d{font-size:11.5px; line-height:1.5}
+.macro-d.down{color:#f87171}
+.macro-d.up{color:#4ade80}
+.macro-d.muted{color:var(--dim)}
+.macro-d.flat{color:var(--muted)}
+
 .notice h3{margin:0 0 8px; font-size:15px}
 .notice p{margin:0; font-size:13px; color:var(--muted); line-height:1.8}
 .notice strong{color:#fca5a5}

@@ -60,6 +60,7 @@ class BuildTest(unittest.TestCase):
         hist.save(rows, self.history)
         run(
             quote_fetcher=fetcher(GOOD),
+            macro_fetcher=lambda: {},
             now=NOW,
             latest_path=self.latest,
             history_path=self.history,
@@ -125,6 +126,7 @@ class BuildTest(unittest.TestCase):
     def test_stale_banner_and_escaping(self) -> None:
         run(
             quote_fetcher=fetcher({"GC=F": 4000.0}),  # 其余全挂 -> 降级
+            macro_fetcher=lambda: {},
             now=NOW,
             latest_path=self.latest,
             history_path=self.history,

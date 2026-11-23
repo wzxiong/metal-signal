@@ -31,7 +31,9 @@ from scripts.config import (
     MACRO_SERIES,
     MAX_BASELINE_AGE_DAYS,
     MAX_DAILY_CHANGE,
+    QUADRANTS,
     RATIOS,
+    REGIME_CONFIRM_DAYS,
     UTC,
 )
 from scripts.market import Quote, fetch_close, fetch_fred_series, transport_name
@@ -299,6 +301,8 @@ def run(
                         "pct": round(pct, 2),
                     }
 
+    events = detect_events(rows, ratios, signals, baseline)
+
     stale = bool(degraded) or not core_ok
     if not core_ok:
         stale_reason = "核心品种全部抓取失败，展示的是历史缓存值"
@@ -321,6 +325,7 @@ def run(
         "ratios": ratios,
         "signals": signals,
         "changes": changes,
+        "events": events,
         "baseline": baseline_info,
         "macro": {
             spec.key: {
@@ -354,6 +359,63 @@ def run(
     return record, (0 if core_ok else 1)
 
 
+def detect_events(
+    rows: list[dict[str, Any]],
+    ratios: dict[str, float | None],
+    signals: dict[str, Any],
+    baseline: dict[str, Any] | None,
+) -> list[dict[str, str]]:
+    """只有"确认过"的变盘才提醒。
+
+    实测：不确认的话 120 日窗口一年会报 21 次，全是 A↔D 来回抖；
+    用 250 日窗口 + 连续确认 3 日，一年 3~4 次，才是真正的风格切换。
+    """
+    events: list[dict[str, str]] = []
+    thresholds = signals.get("thresholds") or {}
+
+    curr = (signals.get("quadrant") or "").strip().upper()
+    streak = int(signals.get("regime_days") or 0)
+
+    # 象限：状态刚满 REGIME_CONFIRM_DAYS 天时触发一次，之后不再重复
+    if curr and streak == REGIME_CONFIRM_DAYS:
+        codes = [(r.get("quadrant") or "").strip().upper() for r in rows]
+        codes = [c for c in codes if c]
+        prev = codes[-REGIME_CONFIRM_DAYS - 1] if len(codes) > REGIME_CONFIRM_DAYS else ""
+        if prev and prev != curr:
+            crossings = []
+            for spec in RATIOS:
+                cut = (thresholds.get(spec.key) or {}).get("value")
+                prev_value = hist.parse_number(baseline.get(spec.key)) if baseline else None
+                curr_value = ratios.get(spec.key)
+                if cut is None or prev_value is None or curr_value is None:
+                    continue
+                if (prev_value >= cut) != (curr_value >= cut):
+                    crossings.append(
+                        f"{spec.label} {'跌破' if curr_value < cut else '升破'} "
+                        f"{(thresholds[spec.key].get('display') or cut)}"
+                    )
+            detail = (
+                f"{QUADRANTS[prev].name} → {QUADRANTS[curr].name}，"
+                f"已连续 {streak} 个交易日确认。{QUADRANTS[curr].description}"
+            )
+            if crossings:
+                detail += " 分界线变化：" + "；".join(crossings) + "。"
+            events.append({"type": "quadrant", "title": f"象限切换 {prev} → {curr}", "detail": detail})
+
+    # 反转清单：首次进入高风险区
+    reversal = signals.get("reversal") or {}
+    prev_score = hist.parse_number(baseline.get("reversal_score")) if baseline else None
+    if reversal.get("alert") and (prev_score is None or prev_score < 3):
+        hits = [i["label"] for i in reversal.get("items", []) if i.get("hit")]
+        events.append({
+            "type": "reversal",
+            "title": f"反转信号 {reversal.get('score')} / {reversal.get('total')} 命中，进入高风险区",
+            "detail": "、".join(hits) if hits else "",
+        })
+
+    return events
+
+
 def _print_summary(record: dict[str, Any]) -> None:
     sig = record["signals"]
     print()
@@ -368,6 +430,10 @@ def _print_summary(record: dict[str, Any]) -> None:
             f"已过去 {record['baseline']['age_days']} 天，隐藏涨跌幅"
         )
     print(f"  历史样本 : {record['history']['days']} 个交易日")
+    if record.get("events"):
+        print("  🔔 变盘:")
+        for event in record["events"]:
+            print(f"     - {event['title']}")
 
 
 def _write_step_summary(record: dict[str, Any]) -> None:

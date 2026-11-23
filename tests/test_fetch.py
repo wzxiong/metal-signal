@@ -205,6 +205,53 @@ class StalenessTest(Harness):
         self.assertIsNotNone(record["gsr"])  # 用沿用的白银仍可算比率
 
 
+class EventDetectionTest(unittest.TestCase):
+    """变盘事件：象限切换需要连续确认，反转清单首次升级。"""
+
+    def _rows(self, codes):
+        return [
+            {"date": f"2026-10-{i + 1:02d}", "quadrant": code, "gsr": 80.0,
+             "copper_gold_ratio": 0.0016, "reversal_score": 1}
+            for i, code in enumerate(codes)
+        ]
+
+    def _signals(self, code="C", streak=3, alert=False):
+        return {
+            "quadrant": code,
+            "regime_days": streak,
+            "thresholds": {
+                "gsr": {"value": 75.0, "display": "75.00"},
+                "copper_gold_ratio": {"value": 0.002, "display": "0.002"},
+                "aluminum_copper_ratio": {"value": 0.6, "display": "0.6"},
+            },
+            "reversal": {"score": 3 if alert else 1, "total": 5, "alert": alert,
+                         "items": [{"label": "宏观逆风", "hit": True}]},
+        }
+
+    def _detect(self, codes, **kw):
+        from scripts.fetch_data import detect_events
+
+        rows = self._rows(codes)
+        return detect_events(rows, {"gsr": 80.0, "copper_gold_ratio": 0.0016},
+                             self._signals(**kw), rows[-2])
+
+    def test_no_alert_before_confirmation(self) -> None:
+        self.assertEqual(self._detect(["B", "C", "C"], streak=2), [])
+
+    def test_alert_on_the_confirmation_day(self) -> None:
+        events = self._detect(["B", "C", "C", "C"], streak=3)
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["title"], "象限切换 B → C")
+        self.assertIn("已连续 3 个交易日确认", events[0]["detail"])
+
+    def test_no_repeat_after_confirmation(self) -> None:
+        self.assertEqual(self._detect(["B", "C", "C", "C", "C"], streak=4), [])
+
+    def test_reversal_escalation(self) -> None:
+        events = self._detect(["C", "C", "C"], streak=3, alert=True)
+        self.assertTrue(any(e["type"] == "reversal" for e in events))
+
+
 class GuardUnitTest(unittest.TestCase):
     def test_missing_symbol_is_not_silently_ignored(self) -> None:
         from scripts.fetch_data import collect

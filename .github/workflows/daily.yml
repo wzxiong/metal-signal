@@ -23,6 +23,7 @@ on:
 
 permissions:
   contents: write      # 需要把 data/ 与 docs/ 提交回仓库
+  issues: write        # 变盘时开 issue 提醒
   pages: write
   id-token: write
 
@@ -71,6 +72,22 @@ jobs:
       # 即使行情降级也照常构建，让页面显示的"数据已滞后"第一时间可见
       - name: Build static site
         run: python -m scripts.build_site
+
+      - name: Detect regime change
+        id: regime
+        run: |
+          python -m scripts.alert --output "$RUNNER_TEMP/alert.json"
+          echo "alert=$(jq -r .alert "$RUNNER_TEMP/alert.json")" >> "$GITHUB_OUTPUT"
+
+      - name: Notify via GitHub Issue
+        if: steps.regime.outputs.alert == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create \
+            --repo "${{ github.repository }}" \
+            --title "$(jq -r .title "$RUNNER_TEMP/alert.json")" \
+            --body "$(jq -r .body "$RUNNER_TEMP/alert.json")"
 
       - name: Flag degraded data
         if: steps.fetch.outcome == 'failure'

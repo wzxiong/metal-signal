@@ -670,6 +670,10 @@ def render(
     sources = " · ".join(str(s) for s in latest.get("sources") or []) or "—"
     generated = now.astimezone(BEIJING).strftime("%Y-%m-%d %H:%M")
 
+    streak = int(signals.get("regime_days") or 0)
+    streak_html = (
+        f'<p class="status-streak">已连续 {streak} 个交易日处于该象限</p>' if streak else ""
+    )
     checklist_html = render_checklist(signals)
     macro_html = render_macro_panel(latest, signals)
 
@@ -720,6 +724,7 @@ def render(
         <div>
           <div class="status-kicker">当前象限</div>
           <h2 class="status-title">{escape(str(signals.get('quadrant') or '—'))} · {escape(str(signals.get('quadrant_name') or '数据不足'))}</h2>
+          {streak_html}
           <p class="status-desc">{escape(str(signals.get('description') or ''))}</p>
         </div>
         {render_risk_meter(risk_score, risk_level)}
@@ -930,6 +935,7 @@ a:hover{color:#c7dcf8}
 .status-head{display:flex; gap:24px; justify-content:space-between; align-items:flex-start; flex-wrap:wrap}
 .status-kicker{font-size:11.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted)}
 .status-title{margin:4px 0 8px; font-size:26px; font-weight:800; color:var(--gold)}
+.status-streak{margin:0 0 8px; font-size:12.5px; color:var(--muted)}
 .status-desc{margin:0; font-size:14.5px; color:#cbd5e1; max-width:56ch}
 .risk{min-width:220px; flex:1 1 220px; max-width:320px}
 .risk-head{display:flex; justify-content:space-between; font-size:12px; color:var(--muted); margin-bottom:6px}

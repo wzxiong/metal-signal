@@ -261,7 +261,15 @@ RATIOS_BY_KEY = {r.key: r for r in RATIOS}
 # 历史样本不足 PERCENTILE_MIN_SAMPLES 时自动回落到 absolute，
 # 因为 2024-2026 两年里铜金比最高只到 0.0017，固定 0.002 会让 A/C 象限永远不可达。
 THRESHOLD_MODE = "percentile"
+# 分界线窗口：取近一年中位数。
+# 实测 120 日窗口的切换是噪声（状态中位只持续 2 个交易日、37% 在 10 日内切回），
+# 250 日窗口中位持续 44 个交易日，才配得上"状态"这个词。
 THRESHOLD_WINDOW = 250
+
+# 象限切换需要连续确认多少个交易日才算"变盘"（去抖，避免假信号）
+REGIME_CONFIRM_DAYS = 3
+# 分位展示窗口单独设置：描述"当前位置在一年里的什么水平"
+PERCENTILE_WINDOW = 250
 
 # 框架默认阈值（absolute 模式 / 无历史时的兜底）
 GSR_THRESHOLD = RATIOS_BY_KEY["gsr"].threshold

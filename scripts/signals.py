@@ -16,6 +16,7 @@ from scripts.config import (
     DXY_HEADWIND_PCT,
     GSR_THRESHOLD,
     PERCENTILE_MIN_SAMPLES,
+    PERCENTILE_WINDOW,
     QUADRANTS,
     RATIOS,
     RATIOS_BY_KEY,
@@ -150,7 +151,7 @@ def ratio_context(
     if value is None or len(values) < PERCENTILE_MIN_SAMPLES:
         return None
 
-    window = values[-250:]  # 最多看一年
+    window = values[-PERCENTILE_WINDOW:]  # 最多看一年
     return {
         "percentile": percentile_rank(value, window),
         "window": len(window),
@@ -403,7 +404,7 @@ def build_reversal_checklist(
     acr_now = ratios.get("aluminum_copper_ratio")
     acr_pct = None
     if acr_now is not None:
-        values = [v for _, v in _points(rows, "aluminum_copper_ratio")][-250:]
+        values = [v for _, v in _points(rows, "aluminum_copper_ratio")][-PERCENTILE_WINDOW:]
         if len(values) >= PERCENTILE_MIN_SAMPLES:
             acr_pct = sum(1 for v in values if v <= acr_now) / len(values) * 100
 
@@ -447,6 +448,20 @@ def build_reversal_checklist(
         "note": note,
         "items": items,
     }
+
+
+def regime_streak(rows: list[dict[str, Any]], code: str | None) -> int:
+    """当前象限已经连续保持了多少个交易日（含今天）。"""
+    if not code:
+        return 0
+    streak = 0
+    for row in reversed(rows):
+        stored = (row.get("quadrant") or "").strip().upper()
+        if stored == code:
+            streak += 1
+        elif stored:
+            break
+    return streak
 
 
 # ---------------------------------------------------------------- 汇总
@@ -506,6 +521,7 @@ def build_signals(
 
     real_yield = real_yield_context(rows)
     reversal = build_reversal_checklist(rows, prices, ratios)
+    streak = regime_streak(rows, code)
 
     trend = {}
     for spec in RATIOS:
@@ -534,6 +550,7 @@ def build_signals(
         "thresholds": thresholds,
         "real_yield": real_yield,
         "reversal": reversal,
+        "regime_days": streak,
         "details": details,
         "actions": list(quadrant.actions) if quadrant else [],
         "context": {k: v for k, v in context.items() if v},

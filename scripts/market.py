@@ -55,6 +55,8 @@ class Quote:
 
 _SESSION: Any = None
 _COOLDOWN_UNTIL = 0.0
+_CRUMB: str | None = None
+_SESSION_WARM = False
 
 
 def transport_name() -> str:
@@ -79,6 +81,38 @@ def session() -> Any:
         _SESSION = requests.Session()
         _SESSION.headers.update(headers)
     return _SESSION
+
+
+def _warm_session(force: bool = False) -> str | None:
+    """先取 cookie + crumb，让请求看起来像一个正常的浏览器会话。
+
+    Yahoo 对云端 IP 的"软封"很多时候只是因为没有合法会话：
+    返回 result: [] 而不是 429。带上 cookie/crumb 后成功率明显提高。
+    """
+    global _CRUMB, _SESSION_WARM
+
+    if _SESSION_WARM and _CRUMB and not force:
+        return _CRUMB
+
+    session_obj = session()
+    try:
+        # fc.yahoo.com 通常返回 404，目的只是写入 cookie
+        session_obj.get("https://fc.yahoo.com", timeout=TIMEOUT)
+    except Exception:  # noqa: BLE001 - 拿不到 cookie 也继续
+        pass
+
+    try:
+        resp = session_obj.get(
+            "https://query2.finance.yahoo.com/v1/test/getcrumb", timeout=TIMEOUT
+        )
+        text = (resp.text or "").strip()
+        if resp.status_code == 200 and 0 < len(text) <= 24:
+            _CRUMB = text
+    except Exception:  # noqa: BLE001
+        pass
+
+    _SESSION_WARM = True
+    return _CRUMB
 
 
 def _sleep_before_request() -> None:
@@ -106,13 +140,17 @@ def _retry_after(resp: Any) -> float | None:
 def _get(path: str, params: dict[str, Any]) -> dict[str, Any]:
     """带退避地请求 chart 接口，返回解析后的 JSON。"""
     last_error: Exception | None = None
+    crumb = _warm_session()
 
     for attempt in range(RETRIES):
         _sleep_before_request()
         for host in YAHOO_HOSTS:
             url = f"{host}{path}"
+            query = dict(params)
+            if crumb:
+                query["crumb"] = crumb
             try:
-                resp = session().get(url, params=params, timeout=TIMEOUT)
+                resp = session().get(url, params=query, timeout=TIMEOUT)
             except Exception as exc:  # noqa: BLE001 - 传输层错误（两种会话都可能）
                 last_error = exc
                 continue
@@ -140,6 +178,8 @@ def _get(path: str, params: dict[str, Any]) -> dict[str, Any]:
                 # Yahoo 被限流时常常返回 result: [] 而不是 429，同样需要退避重试
                 last_error = YahooError("接口返回空结果（疑似限流）")
                 _note_rate_limited()
+                # 会话可能失效了，下一轮重新握手
+                crumb = _warm_session(force=True)
                 break
 
             if status == 429:

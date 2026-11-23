@@ -1,23 +1,23 @@
 {
   "schema": 2,
-  "timestamp": "2026-11-23T06:36:20+00:00",
-  "timestamp_beijing": "2026-11-23 14:36",
+  "timestamp": "2026-11-23T07:59:18+00:00",
+  "timestamp_beijing": "2026-11-23 15:59",
   "as_of": "2026-11-23",
-  "stale": false,
-  "stale_reason": null,
-  "degraded": {},
-  "sources": [
-    "黄金 GC=F",
-    "白银 SI=F",
-    "铜 HG=F",
-    "铝 ALI=F",
-    "美元指数 DX-Y.NYB"
-  ],
+  "stale": true,
+  "stale_reason": "核心品种全部抓取失败，展示的是历史缓存值",
+  "degraded": {
+    "gold": "无行情返回，沿用 今日早前记录",
+    "silver": "无行情返回，沿用 今日早前记录",
+    "copper": "无行情返回，沿用 今日早前记录",
+    "aluminum": "无行情返回，沿用 今日早前记录",
+    "dxy": "无行情返回，沿用 今日早前记录"
+  },
+  "sources": [],
   "prices": {
     "gold": 3617.8,
     "silver": 42.495,
     "copper": 5.531,
-    "aluminum": 1.271419,
+    "aluminum": 1.27142,
     "dxy": 103.649
   },
   "ratios": {
@@ -157,26 +157,6 @@
     }
   },
   "changes": {
-    "gold": {
-      "value": 102.4,
-      "pct": 2.91
-    },
-    "silver": {
-      "value": 1.46,
-      "pct": 3.56
-    },
-    "copper": {
-      "value": 0.054,
-      "pct": 0.99
-    },
-    "aluminum": {
-      "value": -0.025851,
-      "pct": -1.99
-    },
-    "dxy": {
-      "value": -0.161,
-      "pct": -0.16
-    },
     "gsr": {
       "value": -0.54,
       "pct": -0.63
@@ -203,8 +183,8 @@
       "unit": "%"
     },
     "vix": {
-      "value": 35.89,
-      "date": "2026-11-20",
+      "value": null,
+      "date": null,
       "label": "VIX 恐慌指数",
       "unit": ""
     }
@@ -217,7 +197,7 @@
   "gold": 3617.8,
   "silver": 42.495,
   "copper": 5.531,
-  "aluminum": 1.271419,
+  "aluminum": 1.27142,
   "dxy": 103.649,
   "gsr": 85.13,
   "copper_gold_ratio": 0.00153,

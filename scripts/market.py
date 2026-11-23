@@ -32,7 +32,7 @@ except Exception:  # noqa: BLE001 - 缺依赖时优雅降级
     HAS_BROWSER_TLS = False
 
 TIMEOUT = 20
-RETRIES = 3
+RETRIES = 4
 BACKOFF_BASE = 4.0
 BACKOFF_MAX = 25.0
 COOLDOWN_AFTER_429 = 6.0
@@ -124,10 +124,23 @@ def _get(path: str, params: dict[str, Any]) -> dict[str, Any]:
                 except ValueError as exc:
                     last_error = exc
                     continue
-                if isinstance(payload, dict) and "chart" in payload:
+
+                if not (isinstance(payload, dict) and "chart" in payload):
+                    last_error = YahooError("响应缺少 chart 字段")
+                    continue
+
+                chart = payload.get("chart") or {}
+                if chart.get("error"):
+                    # 明确的接口错误（例如 symbol 不存在），换 symbol 更快
+                    raise YahooError(f"接口错误: {chart['error']}")
+
+                if chart.get("result"):
                     return payload
-                last_error = YahooError("响应缺少 chart 字段")
-                continue
+
+                # Yahoo 被限流时常常返回 result: [] 而不是 429，同样需要退避重试
+                last_error = YahooError("接口返回空结果（疑似限流）")
+                _note_rate_limited()
+                break
 
             if status == 429:
                 last_error = YahooError("HTTP 429 限流")
@@ -292,7 +305,9 @@ def fetch_close(symbols: Sequence[str], period: str = "1mo") -> Quote | None:
     这是站点唯一的价格口径：盘中那根未完成的日线直接丢弃，
     保证历史 CSV、走势图、信号计算全部基于同口径的收盘价。
     """
-    for symbol in symbols:
+    for index, symbol in enumerate(symbols):
+        if index:
+            time.sleep(0.6)  # 温和限速，避免触发雅虎软限流
         try:
             payload = _get(
                 f"/v8/finance/chart/{symbol}",

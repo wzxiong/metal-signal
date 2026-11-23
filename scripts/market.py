@@ -250,6 +250,56 @@ def parse_daily(payload: dict[str, Any]) -> list[tuple[date, float]]:
     return sorted(rows.items())
 
 
+def _is_session_open(meta: dict[str, Any]) -> bool:
+    """判断当前这根日线是不是"还没收盘"。"""
+    state = str(meta.get("marketState") or "").upper()
+    if state:
+        return state == "REGULAR"
+    # 拿不到状态时用时间兜底：交易所当地时间还没过 17:00 且这根 K 就是今天
+    tz = _exchange_tz(meta)
+    return datetime.now(tz).hour < 17
+
+
+def _last_closed_bar(
+    rows: list[tuple[date, float]], meta: dict[str, Any]
+) -> tuple[date, float]:
+    """盘中时丢掉未完成的那根 K，只留已收盘的。"""
+    if _is_session_open(meta) and len(rows) > 1:
+        return rows[-2]
+    return rows[-1]
+
+
+def fetch_close(symbols: Sequence[str], period: str = "1mo") -> Quote | None:
+    """取"最近一个已收盘交易日"的收盘价。
+
+    这是站点唯一的价格口径：盘中那根未完成的日线直接丢弃，
+    保证历史 CSV、走势图、信号计算全部基于同口径的收盘价。
+    """
+    for symbol in symbols:
+        try:
+            payload = _get(
+                f"/v8/finance/chart/{symbol}",
+                {"range": period, "interval": "1d"},
+            )
+            result = _chart_result(payload)
+            meta = result.get("meta") or {}
+            rows = parse_daily(result)
+            if not rows:
+                raise YahooError("没有日线数据")
+
+            day, close = _last_closed_bar(rows, meta)
+            return Quote(
+                price=close,
+                symbol=symbol,
+                market_date=day,
+                currency=str(meta.get("currency") or "USD"),
+            )
+        except (YahooError, ValueError) as exc:
+            print(f"    {symbol}: {exc}")
+            continue
+    return None
+
+
 def fetch_quote(symbols: Sequence[str]) -> Quote | None:
     """依次尝试候选 symbol，返回第一个成功的报价。"""
     for symbol in symbols:

@@ -7,6 +7,8 @@ from datetime import date, datetime, timezone
 
 from scripts.market import (
     YahooError,
+    _is_session_open,
+    _last_closed_bar,
     _parse_fred_csv,
     _trading_date,
     parse_daily,
@@ -77,6 +79,35 @@ class QuoteTest(unittest.TestCase):
         )
         with self.assertRaises(YahooError):
             parse_quote(data, "X")
+
+
+class CloseOnlyTest(unittest.TestCase):
+    """站点只用收盘价：盘中那根未完成的 K 必须丢掉。"""
+
+    bars = [
+        (date(2026, 11, 19), 3800.0),
+        (date(2026, 11, 20), 3515.4),
+        (date(2026, 11, 23), 3490.0),  # 盘中
+    ]
+
+    def test_open_session_drops_last_bar(self) -> None:
+        self.assertEqual(_last_closed_bar(self.bars, {"marketState": "REGULAR"}),
+                         (date(2026, 11, 20), 3515.4))
+
+    def test_closed_session_keeps_last_bar(self) -> None:
+        self.assertEqual(_last_closed_bar(self.bars, {"marketState": "CLOSED"}),
+                         (date(2026, 11, 23), 3490.0))
+
+    def test_pre_post_keep_last_bar(self) -> None:
+        for state in ("PRE", "POST", "PREPRE"):
+            with self.subTest(state=state):
+                self.assertFalse(_is_session_open({"marketState": state}))
+                self.assertEqual(_last_closed_bar(self.bars, {"marketState": state})[0],
+                                 date(2026, 11, 23))
+
+    def test_single_bar_is_never_dropped(self) -> None:
+        self.assertEqual(_last_closed_bar(self.bars[:1], {"marketState": "REGULAR"}),
+                         (date(2026, 11, 19), 3800.0))
 
 
 class FredCsvTest(unittest.TestCase):

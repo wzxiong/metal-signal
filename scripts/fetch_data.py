@@ -34,7 +34,7 @@ from scripts.config import (
     RATIOS,
     UTC,
 )
-from scripts.market import Quote, fetch_fred_series, fetch_quote, transport_name
+from scripts.market import Quote, fetch_close, fetch_fred_series, transport_name
 from scripts.signals import build_signals, compute_ratios
 
 SCHEMA_VERSION = 2
@@ -55,7 +55,7 @@ def fetch_macro() -> dict[str, tuple[float, str]]:
                     raise RuntimeError("空序列")
                 day, value = series[-1]
             else:
-                quote = fetch_quote([spec.ident])
+                quote = fetch_close([spec.ident])
                 if quote is None:
                     raise RuntimeError("无报价")
                 day = quote.market_date or date.today()
@@ -179,7 +179,7 @@ def run(
     write: bool = True,
 ) -> tuple[dict[str, Any], int]:
     """执行抓取 + 计算 + 落盘，返回 (记录, 退出码)。"""
-    fetcher = quote_fetcher or fetch_quote
+    fetcher = quote_fetcher or fetch_close
     macro_fetcher = macro_fetcher or fetch_macro
     now = now or datetime.now(timezone.utc)
     today = today or now.astimezone(BEIJING).date()

@@ -1,7 +1,7 @@
 {
   "schema": 2,
-  "timestamp": "2026-11-23T08:02:27+00:00",
-  "timestamp_beijing": "2026-11-23 16:02",
+  "timestamp": "2026-11-23T08:04:45+00:00",
+  "timestamp_beijing": "2026-11-23 16:04",
   "as_of": "2026-11-23",
   "stale": true,
   "stale_reason": "核心品种全部抓取失败，展示的是历史缓存值",

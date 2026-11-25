@@ -1,7 +1,7 @@
 {
   "schema": 2,
-  "timestamp": "2026-11-24T06:05:55+00:00",
-  "timestamp_beijing": "2026-11-24 14:05",
+  "timestamp": "2026-11-25T04:54:17+00:00",
+  "timestamp_beijing": "2026-11-25 12:54",
   "as_of": "2026-11-20",
   "stale": true,
   "stale_reason": "核心品种全部抓取失败，展示的是历史缓存值",
@@ -179,8 +179,8 @@
   },
   "macro": {
     "real_yield": {
-      "value": 2.77,
-      "date": "2026-11-20",
+      "value": 2.79,
+      "date": "2026-11-23",
       "label": "10年期实际利率",
       "unit": "%"
     },
